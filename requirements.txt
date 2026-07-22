@@ -5,3 +5,7 @@ numpy
 sentencepiece
 protobuf
 pytest
+fastapi
+uvicorn
+httpx
+python-multipart
