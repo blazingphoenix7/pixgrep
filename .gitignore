@@ -1,0 +1,72 @@
+# This repo tracks SOURCE CODE + generic DOCS only.
+# No images, no data, no machine-specific config, no generated artifacts.
+
+# ── Images / media (any) ─────────────────────────────────────
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tif
+*.tiff
+*.webp
+*.psd
+*.eps
+*.ai
+*.mp4
+*.mov
+
+# ── Spreadsheets / data files ────────────────────────────────
+*.xlsx
+*.xls
+*.csv
+
+# ── Root-level HTML / Markdown are legacy or data-bearing;
+#    keep only README at the root. (Committed docs live in docs/.)
+/*.html
+/*.md
+!/README.md
+
+# ── Local, machine-specific config: real paths, hosts, secrets.
+#    NEVER commit. This is where environment specifics live.
+.env
+.env.*
+config.local.*
+*.local.json
+secrets.*
+private/
+_local/
+
+# ── Generated artifacts: index, embeddings, models, thumbnails ─
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+index/
+embeddings/
+models/
+model_ir/
+thumbs_cache/
+*.npy
+*.npz
+*.bin
+*.onnx
+*.xml
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# ── OS / editor ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
