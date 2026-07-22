@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>pixgrep</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<header>
+  <h1>pix<span class="accent">grep</span></h1>
+  <p class="tagline">grep for your images</p>
+</header>
+
+<main>
+  <div class="searchbar">
+    <input id="q" type="search" placeholder="Describe what you're looking for…" autofocus />
+    <button id="go">Search</button>
+    <span id="count" class="count"></span>
+  </div>
+
+  <div id="drop" class="drop">
+    <span>…or drag &amp; drop an image here to find similar ones</span>
+  </div>
+
+  <div id="status" class="status"></div>
+  <div id="grid" class="grid"></div>
+</main>
+
+<div id="lightbox" class="lightbox hidden">
+  <div class="lightbox-inner">
+    <img id="lb-img" alt="" />
+    <div class="lightbox-meta">
+      <div id="lb-name" class="lb-name"></div>
+      <div id="lb-path" class="lb-path"></div>
+      <div class="lb-actions">
+        <button id="lb-copy">Copy path</button>
+        <button id="lb-similar">More like this</button>
+        <button id="lb-close">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

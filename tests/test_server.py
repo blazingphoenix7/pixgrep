@@ -86,3 +86,14 @@ def test_image_serving(client):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("image/")
     assert client.get("/api/image/999").status_code == 404
+
+
+def test_root_serves_ui(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "pixgrep" in r.text.lower()
+
+
+def test_static_assets_served(client):
+    assert client.get("/static/app.js").status_code == 200
+    assert client.get("/static/style.css").status_code == 200
