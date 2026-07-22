@@ -1,0 +1,7 @@
+{
+  "image_root": "REPLACE_WITH_PATH_TO_YOUR_IMAGE_FOLDER",
+  "index_dir": "index",
+  "model_id": "google/siglip2-base-patch16-256",
+  "group_strip_pattern": "[-_ ]*(?:pro|s|l|\\d+)$",
+  "batch_size": 16
+}
