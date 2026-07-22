@@ -25,32 +25,35 @@ def create_app(engine: SearchEngine) -> FastAPI:
         q: str = Query(...),
         k: int = Query(24, ge=1, le=200),
         min_ratio: float = Query(0.6, ge=0.0, le=1.0),
+        min_score: float = Query(0.05, ge=0.0, le=1.0),
     ):
         if not q.strip():
             raise HTTPException(status_code=400, detail="empty query")
-        return {"results": engine.text_search(q, k=k, min_ratio=min_ratio)}
+        return {"results": engine.text_search(q, k=k, min_ratio=min_ratio, min_score=min_score)}
 
     @app.post("/api/search/image")
     def search_image(
         file: UploadFile = File(...),
         k: int = Query(24, ge=1, le=200),
         min_ratio: float = Query(0.6, ge=0.0, le=1.0),
+        min_score: float = Query(0.05, ge=0.0, le=1.0),
     ):
         data = file.file.read()
         try:
             img = Image.open(io.BytesIO(data)).convert("RGB")
         except (UnidentifiedImageError, OSError):
             raise HTTPException(status_code=400, detail="could not decode image")
-        return {"results": engine.image_search(img, k=k, min_ratio=min_ratio)}
+        return {"results": engine.image_search(img, k=k, min_ratio=min_ratio, min_score=min_score)}
 
     @app.get("/api/similar/{row}")
     def similar(
         row: int,
         k: int = Query(24, ge=1, le=200),
         min_ratio: float = Query(0.6, ge=0.0, le=1.0),
+        min_score: float = Query(0.05, ge=0.0, le=1.0),
     ):
         try:
-            return {"results": engine.similar(row, k=k, min_ratio=min_ratio)}
+            return {"results": engine.similar(row, k=k, min_ratio=min_ratio, min_score=min_score)}
         except IndexError:
             raise HTTPException(status_code=404, detail="unknown row")
 

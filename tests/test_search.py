@@ -75,8 +75,14 @@ def test_similar_excludes_self(engine):
 
 
 def test_k_larger_than_count_is_safe(engine):
-    # min_ratio=0 disables the relevance cutoff -> all rows come back
-    assert len(engine.text_search("abcd", k=100, min_ratio=0.0)) == 4
+    # both cutoffs disabled -> all rows come back
+    assert len(engine.text_search("abcd", k=100, min_ratio=0.0, min_score=0.0)) == 4
+
+
+def test_absolute_floor_drops_no_match_rows(engine):
+    # even with the relative test off, rows scoring below min_score are dropped
+    results = engine.text_search("abcd", k=100, min_ratio=0.0, min_score=0.5)
+    assert [r["row"] for r in results] == [0, 1]
 
 
 def test_relevance_cutoff_drops_weak_results(engine):

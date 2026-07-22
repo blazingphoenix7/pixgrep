@@ -50,8 +50,11 @@ def test_text_search(client):
     assert len(results) == 1
     assert results[0]["row"] == 0  # axis-0 query -> row 0 first
 
-    # min_ratio=0 disables the cutoff -> raw top-k comes back
-    r = client.get("/api/search", params={"q": "anything", "k": 2, "min_ratio": 0})
+    # both cutoffs disabled -> raw top-k comes back
+    r = client.get(
+        "/api/search",
+        params={"q": "anything", "k": 2, "min_ratio": 0, "min_score": 0},
+    )
     assert len(r.json()["results"]) == 2
 
 
