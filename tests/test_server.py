@@ -42,11 +42,17 @@ def test_meta(client):
 
 
 def test_text_search(client):
+    # default relevance cutoff: only the strong hit (row 0, sim 1.0) survives;
+    # the zero-scoring rows are dropped even though k allows them
     r = client.get("/api/search", params={"q": "anything", "k": 2})
     assert r.status_code == 200
     results = r.json()["results"]
-    assert len(results) == 2
+    assert len(results) == 1
     assert results[0]["row"] == 0  # axis-0 query -> row 0 first
+
+    # min_ratio=0 disables the cutoff -> raw top-k comes back
+    r = client.get("/api/search", params={"q": "anything", "k": 2, "min_ratio": 0})
+    assert len(r.json()["results"]) == 2
 
 
 def test_text_search_requires_query(client):

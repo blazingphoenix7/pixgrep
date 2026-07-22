@@ -12,8 +12,8 @@ async function meta() {
 
 function render(results) {
   grid.innerHTML = "";
-  if (!results.length) { status.textContent = "No results."; return; }
-  status.textContent = `${results.length} results`;
+  if (!results.length) { status.textContent = "No matches."; return; }
+  status.textContent = `${results.length} match${results.length === 1 ? "" : "es"}`;
   for (const r of results) {
     const card = document.createElement("div");
     card.className = "card";

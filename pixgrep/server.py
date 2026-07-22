@@ -21,24 +21,36 @@ def create_app(engine: SearchEngine) -> FastAPI:
         return {"count": engine.count}
 
     @app.get("/api/search")
-    def search(q: str = Query(...), k: int = Query(24, ge=1, le=200)):
+    def search(
+        q: str = Query(...),
+        k: int = Query(24, ge=1, le=200),
+        min_ratio: float = Query(0.6, ge=0.0, le=1.0),
+    ):
         if not q.strip():
             raise HTTPException(status_code=400, detail="empty query")
-        return {"results": engine.text_search(q, k=k)}
+        return {"results": engine.text_search(q, k=k, min_ratio=min_ratio)}
 
     @app.post("/api/search/image")
-    def search_image(file: UploadFile = File(...), k: int = Query(24, ge=1, le=200)):
+    def search_image(
+        file: UploadFile = File(...),
+        k: int = Query(24, ge=1, le=200),
+        min_ratio: float = Query(0.6, ge=0.0, le=1.0),
+    ):
         data = file.file.read()
         try:
             img = Image.open(io.BytesIO(data)).convert("RGB")
         except (UnidentifiedImageError, OSError):
             raise HTTPException(status_code=400, detail="could not decode image")
-        return {"results": engine.image_search(img, k=k)}
+        return {"results": engine.image_search(img, k=k, min_ratio=min_ratio)}
 
     @app.get("/api/similar/{row}")
-    def similar(row: int, k: int = Query(24, ge=1, le=200)):
+    def similar(
+        row: int,
+        k: int = Query(24, ge=1, le=200),
+        min_ratio: float = Query(0.6, ge=0.0, le=1.0),
+    ):
         try:
-            return {"results": engine.similar(row, k=k)}
+            return {"results": engine.similar(row, k=k, min_ratio=min_ratio)}
         except IndexError:
             raise HTTPException(status_code=404, detail="unknown row")
 

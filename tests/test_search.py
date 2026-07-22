@@ -75,4 +75,18 @@ def test_similar_excludes_self(engine):
 
 
 def test_k_larger_than_count_is_safe(engine):
-    assert len(engine.text_search("abcd", k=100)) == 4
+    # min_ratio=0 disables the relevance cutoff -> all rows come back
+    assert len(engine.text_search("abcd", k=100, min_ratio=0.0)) == 4
+
+
+def test_relevance_cutoff_drops_weak_results(engine):
+    # axis-0 query: rows 0 (sim 1.0) and 1 (sim ~0.99) pass the 0.6 ratio;
+    # rows 2 and 3 (sim 0.0) are dropped even though k allows them
+    results = engine.text_search("abcd", k=100)
+    assert [r["row"] for r in results] == [0, 1]
+
+
+def test_relevance_cutoff_ratio_is_tunable(engine):
+    # a ratio above ~0.995 keeps only the single best hit
+    results = engine.text_search("abcd", k=100, min_ratio=0.999)
+    assert [r["row"] for r in results] == [0]
