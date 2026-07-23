@@ -67,6 +67,19 @@ def create_app(engine: SearchEngine) -> FastAPI:
             raise HTTPException(status_code=404, detail="file missing on disk")
         return FileResponse(path)
 
+    @app.get("/api/thumb/{row}")
+    def thumb(row: int):
+        thumb_path = engine.index_dir / "thumbs" / f"{row}.jpg"
+        if thumb_path.is_file():
+            return FileResponse(thumb_path)
+        try:
+            path = Path(engine.path_for(row))
+        except IndexError:
+            raise HTTPException(status_code=404, detail="unknown row")
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="file missing on disk")
+        return FileResponse(path)
+
     if STATIC_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

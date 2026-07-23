@@ -11,7 +11,8 @@ class SearchEngine:
     """Brute-force exact cosine search over the built index."""
 
     def __init__(self, index_dir: Path, embedder):
-        self.paths, self.groups, self.emb = load_index(Path(index_dir))
+        self.index_dir = Path(index_dir)
+        self.paths, self.groups, self.emb = load_index(self.index_dir)
         self.embedder = embedder
 
     @property

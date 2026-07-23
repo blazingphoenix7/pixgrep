@@ -106,3 +106,43 @@ def test_root_serves_ui(client):
 def test_static_assets_served(client):
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/static/style.css").status_code == 200
+
+
+@pytest.fixture()
+def thumb_client(tmp_path):
+    img_dir = tmp_path / "imgs"
+    img_dir.mkdir()
+    index_dir = tmp_path / "index"
+    rel_paths = []
+    emb = np.eye(4, dtype=np.float32)[:3]
+    for i, color in enumerate([(255, 0, 0), (0, 255, 0), (0, 0, 255)]):
+        p = img_dir / f"img{i}.jpg"
+        Image.new("RGB", (8, 8), color).save(p)
+        rel_paths.append(str(p))
+    save_index(index_dir, rel_paths, ["g0", "g1", "g2"], emb)
+
+    # Create a thumbnail only for row 0; row 1 has none (to test fallback)
+    thumbs_dir = index_dir / "thumbs"
+    thumbs_dir.mkdir()
+    Image.new("RGB", (64, 64), (255, 0, 0)).save(thumbs_dir / "0.jpg", "JPEG")
+
+    engine = SearchEngine(index_dir, FakeEmbedder())
+    app = create_app(engine)
+    return TestClient(app)
+
+
+def test_thumb_serves_thumb(thumb_client):
+    r = thumb_client.get("/api/thumb/0")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("image/")
+
+
+def test_thumb_falls_back_to_image(thumb_client):
+    # row 1 has no thumb file → falls back to original image
+    r = thumb_client.get("/api/thumb/1")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("image/")
+
+
+def test_thumb_unknown_row_returns_404(thumb_client):
+    assert thumb_client.get("/api/thumb/999").status_code == 404

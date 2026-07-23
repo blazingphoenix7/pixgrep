@@ -43,6 +43,8 @@ _local/
 *.db
 *.db-wal
 *.db-shm
+*.sqlite-wal
+*.sqlite-shm
 index/
 embeddings/
 models/

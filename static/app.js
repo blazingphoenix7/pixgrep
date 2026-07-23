@@ -21,7 +21,7 @@ function render(results) {
     imgwrap.className = "imgwrap";
     const img = document.createElement("img");
     img.loading = "lazy";
-    img.src = `/api/image/${r.row}`;
+    img.src = `/api/thumb/${r.row}`;
     img.alt = "";
     imgwrap.appendChild(img);
     const cap = document.createElement("div");
