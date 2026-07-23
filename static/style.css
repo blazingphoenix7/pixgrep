@@ -29,7 +29,9 @@ main { padding: 16px 32px 60px; }
 #go {
   padding: 12px 22px; font-size: 14px; cursor: pointer;
   background: var(--accent); color: #fff; border: 0; border-radius: 10px;
+  transition: opacity 0.15s;
 }
+#go:disabled { opacity: 0.5; cursor: not-allowed; }
 .count { color: var(--muted); font-size: 13px; }
 
 .drop {
@@ -39,8 +41,14 @@ main { padding: 16px 32px 60px; }
 }
 .drop.hover { border-color: var(--accent); color: var(--accent); background: #4da3ff11; }
 
-.filters { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-.filters.hidden { display: none; }
+/* Chips expand in-place so content below doesn't jump on load */
+.filters {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.25s ease, margin-top 0.25s ease;
+  margin-top: 0;
+}
+.filters:not(.hidden) { max-height: 400px; margin-top: 14px; }
 .filter-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .filter-label {
   color: var(--muted); font-size: 12px; text-transform: capitalize;
@@ -57,7 +65,7 @@ main { padding: 16px 32px 60px; }
 .status { margin: 14px 0 4px; color: var(--muted); font-size: 13px; min-height: 18px; }
 
 .grid {
-  margin-top: 10px; display: grid; gap: 14px;
+  margin-top: 10px; display: grid; gap: 16px;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 }
 .card {
@@ -84,7 +92,7 @@ main { padding: 16px 32px 60px; }
 .lightbox-meta { margin-top: 12px; }
 .lb-name { font-size: 15px; font-weight: 600; }
 .lb-path { color: var(--muted); font-size: 12px; word-break: break-all; margin-top: 4px; }
-.lb-actions { margin-top: 12px; display: flex; gap: 8px; }
+.lb-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 .lb-actions button {
   padding: 8px 14px; font-size: 13px; cursor: pointer; border-radius: 8px;
   border: 1px solid var(--line); background: var(--bg); color: var(--ink);

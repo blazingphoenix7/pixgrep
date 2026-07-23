@@ -146,3 +146,27 @@ def test_thumb_falls_back_to_image(thumb_client):
 
 def test_thumb_unknown_row_returns_404(thumb_client):
     assert thumb_client.get("/api/thumb/999").status_code == 404
+
+
+# --- Cache-Control header tests ---
+
+def test_root_cache_no_store(client):
+    r = client.get("/")
+    assert r.headers.get("cache-control") == "no-store"
+
+
+def test_static_asset_cache_no_store(client):
+    r = client.get("/static/app.js")
+    assert r.headers.get("cache-control") == "no-store"
+    r2 = client.get("/static/style.css")
+    assert r2.headers.get("cache-control") == "no-store"
+
+
+def test_api_search_cache_no_cache(client):
+    r = client.get("/api/search", params={"q": "test", "min_ratio": "0", "min_score": "0"})
+    assert r.headers.get("cache-control") == "no-cache"
+
+
+def test_api_meta_cache_no_cache(client):
+    r = client.get("/api/meta")
+    assert r.headers.get("cache-control") == "no-cache"

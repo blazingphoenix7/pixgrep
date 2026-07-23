@@ -21,6 +21,7 @@ class Config:
     ov_devices: tuple[str, ...] = ("NPU", "CPU")
     ov_cache_dir: str = ""
     hybrid_weight: float = 0.08
+    junk_threshold: float = 0.0  # 0 = disabled
 
     @property
     def db_path(self) -> Path:
@@ -69,4 +70,5 @@ def load_config(path="config.local.json") -> Config:
         ov_devices=tuple(data.get("ov_devices", ["NPU", "CPU"])),
         ov_cache_dir=data.get("ov_cache_dir", ""),
         hybrid_weight=float(data.get("hybrid_weight", 0.08)),
+        junk_threshold=float(data.get("junk_threshold", 0.0)),
     )

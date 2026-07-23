@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 const grid = $("grid"), status = $("status");
 let current = null; // row shown in lightbox
 const activeFilters = {}; // {field: value}
+let isSearching = false;
 
 async function meta() {
   try {
@@ -74,7 +75,8 @@ function appendFilters(url) {
 }
 
 function render(results) {
-  grid.innerHTML = "";
+  grid.replaceChildren();
+  // Both the status count and the card loop derive from the same array, so they are always in sync.
   if (!results.length) { status.textContent = "No matches."; return; }
   status.textContent = `${results.length} match${results.length === 1 ? "" : "es"}`;
   for (const r of results) {
@@ -105,39 +107,67 @@ function render(results) {
   }
 }
 
+function setSearching(active) {
+  isSearching = active;
+  $("go").disabled = active;
+}
+
 async function doSearch() {
   const q = $("q").value.trim();
-  if (!q) return;
+  if (!q || isSearching) return;
+  setSearching(true);
   status.textContent = "Searching…";
-  const url = new URL("/api/search", location.origin);
-  url.searchParams.set("q", q);
-  url.searchParams.set("k", "48");
-  appendFilters(url);
-  const r = await fetch(url);
-  if (!r.ok) { status.textContent = "Search failed."; return; }
-  render((await r.json()).results);
+  try {
+    const url = new URL("/api/search", location.origin);
+    url.searchParams.set("q", q);
+    url.searchParams.set("k", "48");
+    appendFilters(url);
+    const r = await fetch(url);
+    if (!r.ok) { status.textContent = `Search failed (${r.status}).`; return; }
+    render((await r.json()).results);
+  } catch {
+    status.textContent = "Network error — is the server running?";
+  } finally {
+    setSearching(false);
+  }
 }
 
 async function doImageSearch(file) {
+  if (isSearching) return;
+  setSearching(true);
   status.textContent = "Searching by image…";
-  const url = new URL("/api/search/image", location.origin);
-  url.searchParams.set("k", "48");
-  appendFilters(url);
-  const fd = new FormData();
-  fd.append("file", file);
-  const r = await fetch(url, { method: "POST", body: fd });
-  if (!r.ok) { status.textContent = "Could not read that image."; return; }
-  render((await r.json()).results);
+  try {
+    const url = new URL("/api/search/image", location.origin);
+    url.searchParams.set("k", "48");
+    appendFilters(url);
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(url, { method: "POST", body: fd });
+    if (!r.ok) { status.textContent = "Could not read that image."; return; }
+    render((await r.json()).results);
+  } catch {
+    status.textContent = "Network error — is the server running?";
+  } finally {
+    setSearching(false);
+  }
 }
 
 async function doSimilar(row) {
+  if (isSearching) return;
+  setSearching(true);
   status.textContent = "Finding similar…";
-  const url = new URL(`/api/similar/${row}`, location.origin);
-  url.searchParams.set("k", "48");
-  appendFilters(url);
-  const r = await fetch(url);
-  if (!r.ok) { status.textContent = "Failed."; return; }
-  render((await r.json()).results);
+  try {
+    const url = new URL(`/api/similar/${row}`, location.origin);
+    url.searchParams.set("k", "48");
+    appendFilters(url);
+    const r = await fetch(url);
+    if (!r.ok) { status.textContent = "Search failed."; return; }
+    render((await r.json()).results);
+  } catch {
+    status.textContent = "Network error — is the server running?";
+  } finally {
+    setSearching(false);
+  }
 }
 
 function openLightbox(r) {
@@ -148,17 +178,24 @@ function openLightbox(r) {
   $("lightbox").classList.remove("hidden");
 }
 
+function closeLightbox() {
+  $("lightbox").classList.add("hidden");
+}
+
 $("go").addEventListener("click", doSearch);
 $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
-$("lb-close").addEventListener("click", () => $("lightbox").classList.add("hidden"));
+$("lb-close").addEventListener("click", closeLightbox);
 $("lightbox").addEventListener("click", (e) => {
-  if (e.target === $("lightbox")) $("lightbox").classList.add("hidden");
+  if (e.target === $("lightbox")) closeLightbox();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeLightbox();
 });
 $("lb-copy").addEventListener("click", () => {
   if (current) navigator.clipboard.writeText(current.path);
 });
 $("lb-similar").addEventListener("click", () => {
-  if (current) { $("lightbox").classList.add("hidden"); doSimilar(current.row); }
+  if (current) { closeLightbox(); doSimilar(current.row); }
 });
 
 const drop = $("drop");

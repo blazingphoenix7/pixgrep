@@ -8,8 +8,20 @@ from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .search import SearchEngine
+
+
+class _CacheControlMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache"
+        elif path == "/" or path == "/index.html" or path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -31,6 +43,7 @@ def _parse_filters(f_params: list[str]) -> dict[str, str] | None:
 
 def create_app(engine: SearchEngine) -> FastAPI:
     app = FastAPI(title="pixgrep")
+    app.add_middleware(_CacheControlMiddleware)
 
     @app.get("/api/meta")
     def meta():
@@ -150,7 +163,7 @@ def main() -> None:
 
     cfg = load_config()
     print(f"Loading model {cfg.model_id} ...")
-    engine = SearchEngine(cfg.index_dir, cfg.make_embedder(), hybrid_weight=cfg.hybrid_weight)
+    engine = SearchEngine(cfg.index_dir, cfg.make_embedder(), hybrid_weight=cfg.hybrid_weight, junk_threshold=cfg.junk_threshold)
     print(f"Index loaded: {engine.count} images. http://{args.host}:{args.port}")
     uvicorn.run(create_app(engine), host=args.host, port=args.port)
 

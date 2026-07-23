@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .junk import load_junk_scores
 from .store import load_index
 from .tags import TagStore
 
@@ -11,12 +12,20 @@ from .tags import TagStore
 class SearchEngine:
     """Brute-force exact cosine search over the built index."""
 
-    def __init__(self, index_dir: Path, embedder, hybrid_weight: float = 0.08):
+    def __init__(
+        self,
+        index_dir: Path,
+        embedder,
+        hybrid_weight: float = 0.08,
+        junk_threshold: float = 0.0,
+    ):
         self.index_dir = Path(index_dir)
         self.paths, self.groups, self.emb = load_index(self.index_dir)
         self.embedder = embedder
         self._hybrid_weight = hybrid_weight
+        self._junk_threshold = junk_threshold
         self._tags = TagStore(self.index_dir)
+        self._junk_scores = load_junk_scores(self.index_dir, len(self.paths))
 
     @property
     def count(self) -> int:
@@ -104,6 +113,10 @@ class SearchEngine:
                 keep = np.zeros(len(self.paths), dtype=bool)
                 keep[matching] = True
                 sims[~keep] = -np.inf
+
+        # Mask junk rows before top-k partition
+        if self._junk_scores is not None and self._junk_threshold > 0:
+            sims[self._junk_scores >= self._junk_threshold] = -np.inf
 
         n_valid = int(np.sum(np.isfinite(sims)))
         k = min(k, n_valid)
