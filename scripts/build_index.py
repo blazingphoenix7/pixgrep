@@ -5,14 +5,13 @@ import sys
 import time
 
 from pixgrep.config import load_config
-from pixgrep.embedding import Embedder
 from pixgrep.indexer import build_index
 
 
 def main() -> int:
     cfg = load_config()
-    print(f"Loading model {cfg.model_id} ...")
-    embedder = Embedder(cfg.model_id)
+    print(f"Loading model {cfg.model_id} (engine={cfg.engine}) ...")
+    embedder = cfg.make_embedder()
     print(f"Indexing images under: {cfg.image_root}")
     t0 = time.time()
     result = build_index(cfg, embedder)

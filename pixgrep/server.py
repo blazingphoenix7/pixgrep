@@ -83,7 +83,6 @@ def main() -> None:
     import uvicorn
 
     from .config import load_config
-    from .embedding import Embedder
 
     parser = argparse.ArgumentParser(description="pixgrep search server")
     parser.add_argument("--host", default="127.0.0.1")
@@ -92,7 +91,7 @@ def main() -> None:
 
     cfg = load_config()
     print(f"Loading model {cfg.model_id} ...")
-    engine = SearchEngine(cfg.index_dir, Embedder(cfg.model_id))
+    engine = SearchEngine(cfg.index_dir, cfg.make_embedder())
     print(f"Index loaded: {engine.count} images. http://{args.host}:{args.port}")
     uvicorn.run(create_app(engine), host=args.host, port=args.port)
 

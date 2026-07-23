@@ -16,6 +16,10 @@ class Config:
     model_id: str
     group_strip_pattern: str
     batch_size: int
+    engine: str = "torch"  # "torch" | "openvino"
+    ov_vision_ir: str = ""  # path to converted vision IR (see scripts/convert_ov.py)
+    ov_devices: tuple[str, ...] = ("NPU", "CPU")
+    ov_cache_dir: str = ""
 
     @property
     def db_path(self) -> Path:
@@ -24,6 +28,22 @@ class Config:
     @property
     def emb_path(self) -> Path:
         return self.index_dir / "embeddings.npy"
+
+    def make_embedder(self):
+        """Build the embedder the config asks for (torch by default)."""
+        if self.engine == "openvino":
+            from .embedding_ov import OVEmbedder
+
+            return OVEmbedder(
+                self.model_id,
+                Path(self.ov_vision_ir),
+                devices=tuple(self.ov_devices),
+                batch_size=self.batch_size,
+                cache_dir=Path(self.ov_cache_dir) if self.ov_cache_dir else None,
+            )
+        from .embedding import Embedder
+
+        return Embedder(self.model_id)
 
 
 def load_config(path="config.local.json") -> Config:
@@ -43,4 +63,8 @@ def load_config(path="config.local.json") -> Config:
         model_id=data.get("model_id", DEFAULT_MODEL_ID),
         group_strip_pattern=data.get("group_strip_pattern", DEFAULT_STRIP_PATTERN),
         batch_size=int(data.get("batch_size", 16)),
+        engine=data.get("engine", "torch"),
+        ov_vision_ir=data.get("ov_vision_ir", ""),
+        ov_devices=tuple(data.get("ov_devices", ["NPU", "CPU"])),
+        ov_cache_dir=data.get("ov_cache_dir", ""),
     )

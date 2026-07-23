@@ -30,6 +30,34 @@ Full design: [`docs/DESIGN.md`](docs/DESIGN.md).
 The image directory and other machine-specific settings are read from a local, **untracked** config
 (`.env` / `config.local.*`). Nothing environment-specific is committed to this repo.
 
+
+## Intel acceleration (OpenVINO)
+
+On Intel machines (Core Ultra CPUs with NPUs, Arc iGPUs) pixgrep can run the
+vision encoder through OpenVINO with weight-only INT8 compression — in our
+benchmarks **2–4.7x faster indexing** with retrieval quality identical to
+FP16 (validated on recall metrics, not just tensor parity). Full activation
+quantization is deliberately avoided: it collapsed retrieval quality for
+SigLIP2-style ViTs in testing.
+
+```bash
+pip install openvino nncf
+python scripts/convert_ov.py   # one-time: converts + compresses the model
+```
+
+Then in `config.local.json`:
+
+```json
+{
+  "engine": "openvino",
+  "ov_vision_ir": "ov_models/vision_int8.xml",
+  "ov_devices": ["NPU", "CPU"]
+}
+```
+
+Multiple devices run in parallel with work stealing. Drop `"NPU"` if your
+machine has none; the engine skips unavailable devices gracefully.
+
 ## Status
 
 🚧 Pre-implementation / in progress.
