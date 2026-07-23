@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const grid = $("grid"), status = $("status");
 let current = null; // row shown in lightbox
+const activeFilters = {}; // {field: value}
 
 async function meta() {
   try {
@@ -8,6 +9,68 @@ async function meta() {
     const j = await r.json();
     $("count").textContent = `${j.count} images indexed`;
   } catch { $("count").textContent = ""; }
+}
+
+async function loadFacets() {
+  try {
+    const r = await fetch("/api/facets");
+    if (!r.ok) return;
+    const facets = await r.json();
+    const fields = Object.keys(facets);
+    if (!fields.length) return;
+
+    const container = $("filters");
+    for (const field of fields) {
+      const values = facets[field].slice(0, 8);
+      if (!values.length) continue;
+
+      const row = document.createElement("div");
+      row.className = "filter-row";
+
+      const label = document.createElement("span");
+      label.className = "filter-label";
+      label.textContent = field.replace(/_/g, " ");
+      row.appendChild(label);
+
+      for (const { value, count } of values) {
+        const chip = document.createElement("button");
+        chip.className = "chip";
+        chip.dataset.field = field;
+        chip.dataset.value = value;
+        const nm = document.createElement("span");
+        nm.textContent = value;
+        const ct = document.createElement("span");
+        ct.style.opacity = "0.6";
+        ct.textContent = ` ${count}`;
+        chip.appendChild(nm);
+        chip.appendChild(ct);
+        chip.addEventListener("click", () => toggleChip(chip, field, value));
+        row.appendChild(chip);
+      }
+
+      container.appendChild(row);
+    }
+    container.classList.remove("hidden");
+  } catch {}
+}
+
+function toggleChip(chip, field, value) {
+  if (activeFilters[field] === value) {
+    delete activeFilters[field];
+    chip.classList.remove("active");
+  } else {
+    // Deactivate previous selection for this field
+    const prev = $("filters").querySelector(`.chip.active[data-field]`);
+    if (prev && prev.dataset.field === field) prev.classList.remove("active");
+    activeFilters[field] = value;
+    chip.classList.add("active");
+  }
+}
+
+function appendFilters(url) {
+  for (const [field, value] of Object.entries(activeFilters)) {
+    url.searchParams.append("f", `${field}:${value}`);
+  }
 }
 
 function render(results) {
@@ -46,23 +109,33 @@ async function doSearch() {
   const q = $("q").value.trim();
   if (!q) return;
   status.textContent = "Searching…";
-  const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&k=48`);
+  const url = new URL("/api/search", location.origin);
+  url.searchParams.set("q", q);
+  url.searchParams.set("k", "48");
+  appendFilters(url);
+  const r = await fetch(url);
   if (!r.ok) { status.textContent = "Search failed."; return; }
   render((await r.json()).results);
 }
 
 async function doImageSearch(file) {
   status.textContent = "Searching by image…";
+  const url = new URL("/api/search/image", location.origin);
+  url.searchParams.set("k", "48");
+  appendFilters(url);
   const fd = new FormData();
   fd.append("file", file);
-  const r = await fetch("/api/search/image?k=48", { method: "POST", body: fd });
+  const r = await fetch(url, { method: "POST", body: fd });
   if (!r.ok) { status.textContent = "Could not read that image."; return; }
   render((await r.json()).results);
 }
 
 async function doSimilar(row) {
   status.textContent = "Finding similar…";
-  const r = await fetch(`/api/similar/${row}?k=48`);
+  const url = new URL(`/api/similar/${row}`, location.origin);
+  url.searchParams.set("k", "48");
+  appendFilters(url);
+  const r = await fetch(url);
   if (!r.ok) { status.textContent = "Failed."; return; }
   render((await r.json()).results);
 }
@@ -99,3 +172,4 @@ drop.addEventListener("drop", (e) => {
 });
 
 meta();
+loadFacets();

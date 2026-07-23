@@ -39,6 +39,21 @@ main { padding: 16px 32px 60px; }
 }
 .drop.hover { border-color: var(--accent); color: var(--accent); background: #4da3ff11; }
 
+.filters { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.filters.hidden { display: none; }
+.filter-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.filter-label {
+  color: var(--muted); font-size: 12px; text-transform: capitalize;
+  min-width: 80px; flex: none;
+}
+.chip {
+  padding: 4px 10px; font-size: 12px; cursor: pointer; border-radius: 20px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  transition: 0.12s;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 .status { margin: 14px 0 4px; color: var(--muted); font-size: 13px; min-height: 18px; }
 
 .grid {

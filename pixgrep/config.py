@@ -20,6 +20,7 @@ class Config:
     ov_vision_ir: str = ""  # path to converted vision IR (see scripts/convert_ov.py)
     ov_devices: tuple[str, ...] = ("NPU", "CPU")
     ov_cache_dir: str = ""
+    hybrid_weight: float = 0.08
 
     @property
     def db_path(self) -> Path:
@@ -67,4 +68,5 @@ def load_config(path="config.local.json") -> Config:
         ov_vision_ir=data.get("ov_vision_ir", ""),
         ov_devices=tuple(data.get("ov_devices", ["NPU", "CPU"])),
         ov_cache_dir=data.get("ov_cache_dir", ""),
+        hybrid_weight=float(data.get("hybrid_weight", 0.08)),
     )
