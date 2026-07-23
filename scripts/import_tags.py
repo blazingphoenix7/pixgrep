@@ -51,6 +51,11 @@ def main() -> None:
     parser.add_argument("--file", required=True, help="xlsx or csv source file")
     parser.add_argument("--sheet", default=None, help="Sheet name (xlsx only)")
     parser.add_argument("--mapping", required=True, help="JSON column-mapping file")
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to config JSON (default: config.local.json).",
+    )
     args = parser.parse_args()
 
     mapping = json.loads(Path(args.mapping).read_text(encoding="utf-8"))
@@ -66,7 +71,7 @@ def main() -> None:
 
     print(f"Loaded {len(records)} records from {path.name}")
 
-    cfg = load_config()
+    cfg = load_config(args.config) if args.config else load_config()
     report = import_tags(
         cfg.index_dir,
         records,
