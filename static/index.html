@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>pixgrep</title>
-<link rel="stylesheet" href="/static/style.css?v=4" />
+<link rel="stylesheet" href="/static/style.css?v=5" />
 </head>
 <body>
 <header>
@@ -39,12 +39,31 @@
       <div class="lb-actions">
         <button id="lb-copy">Copy path</button>
         <button id="lb-similar">More like this</button>
+        <button id="lb-add-deck">Add to deck</button>
         <button id="lb-close">Close</button>
       </div>
     </div>
   </div>
 </div>
 
-<script src="/static/app.js?v=4"></script>
+<div id="tray" class="tray hidden">
+  <div class="tray-thumbs" id="tray-thumbs"></div>
+  <div class="tray-controls">
+    <span class="tray-count" id="tray-count"></span>
+    <select id="tray-layout" title="Slide layout">
+      <option value="1">1 per slide</option>
+      <option value="4">2×2 grid</option>
+    </select>
+    <label class="tray-caption-label">
+      <input type="checkbox" id="tray-captions" checked />
+      Captions
+    </label>
+    <button id="tray-clear">Clear</button>
+    <button id="tray-download" class="tray-primary-btn">Download PPTX</button>
+    <span id="tray-msg" class="tray-msg"></span>
+  </div>
+</div>
+
+<script src="/static/app.js?v=5"></script>
 </body>
 </html>

@@ -3,6 +3,7 @@ const grid = $("grid"), status = $("status");
 let current = null; // row shown in lightbox
 const activeFilters = {}; // {field: value}
 let isSearching = false;
+let tray = []; // ordered row integers for the export deck
 
 async function meta() {
   try {
@@ -103,6 +104,23 @@ function render(results) {
     card.appendChild(imgwrap);
     card.appendChild(cap);
     card.addEventListener("click", () => openLightbox(r));
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "add-btn";
+    addBtn.title = "Add to deck";
+    addBtn.textContent = "+";
+    addBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!addToTray(r.row)) {
+        addBtn.textContent = "✓";
+        setTimeout(() => { addBtn.textContent = "+"; }, 700);
+      } else {
+        addBtn.classList.add("added");
+        setTimeout(() => { addBtn.classList.remove("added"); }, 700);
+      }
+    });
+    card.appendChild(addBtn);
+
     grid.appendChild(card);
   }
 }
@@ -239,6 +257,109 @@ drop.addEventListener("drop", (e) => {
   const f = e.dataTransfer.files[0];
   if (f) doImageSearch(f);
 });
+
+// ── Tray ──────────────────────────────────────────────────────────────────────
+
+function addToTray(row) {
+  if (tray.includes(row)) return false;
+  tray.push(row);
+  localStorage.setItem("pixgrep-tray", JSON.stringify(tray));
+  renderTray();
+  return true;
+}
+
+function removeFromTray(row) {
+  tray = tray.filter((r) => r !== row);
+  localStorage.setItem("pixgrep-tray", JSON.stringify(tray));
+  renderTray();
+}
+
+function renderTray() {
+  const trayEl = $("tray");
+  if (!tray.length) { trayEl.classList.add("hidden"); return; }
+  trayEl.classList.remove("hidden");
+
+  const thumbsEl = $("tray-thumbs");
+  thumbsEl.replaceChildren();
+  for (const row of tray) {
+    const wrap = document.createElement("div");
+    wrap.className = "tray-thumb-wrap";
+
+    const img = document.createElement("img");
+    img.src = `/api/thumb/${row}`;
+    img.alt = "";
+    img.className = "tray-thumb";
+
+    const rm = document.createElement("button");
+    rm.className = "tray-thumb-remove";
+    rm.textContent = "×";
+    rm.title = "Remove";
+    rm.addEventListener("click", () => removeFromTray(row));
+
+    wrap.appendChild(img);
+    wrap.appendChild(rm);
+    thumbsEl.appendChild(wrap);
+  }
+
+  const n = tray.length;
+  $("tray-count").textContent = `${n} slide${n === 1 ? "" : "s"}`;
+}
+
+async function downloadPptx() {
+  const btn = $("tray-download");
+  const msg = $("tray-msg");
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+  msg.textContent = "";
+  try {
+    const r = await fetch("/api/export/pptx", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rows: tray,
+        layout: $("tray-layout").value,
+        captions: $("tray-captions").checked,
+      }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      msg.textContent = `Export failed: ${j.detail || r.status}`;
+      return;
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pixgrep-export.pptx";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    msg.textContent = "Network error during export.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Download PPTX";
+  }
+}
+
+$("lb-add-deck").addEventListener("click", () => {
+  if (!current) return;
+  const btn = $("lb-add-deck");
+  const added = addToTray(current.row);
+  const orig = btn.textContent;
+  btn.textContent = added ? "Added!" : "Already in deck";
+  setTimeout(() => { btn.textContent = orig; }, 900);
+});
+
+$("tray-download").addEventListener("click", downloadPptx);
+$("tray-clear").addEventListener("click", () => {
+  tray = [];
+  localStorage.setItem("pixgrep-tray", JSON.stringify(tray));
+  renderTray();
+});
+
+// Restore tray from localStorage on load
+try { tray = JSON.parse(localStorage.getItem("pixgrep-tray") || "[]"); } catch { tray = []; }
+renderTray();
 
 meta();
 loadFacets();
