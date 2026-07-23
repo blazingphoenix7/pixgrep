@@ -182,3 +182,24 @@ def test_thumbnail_created(tmp_path):
     # Thumbnail must fit within 384px on its longest side
     thumb = Image.open(cfg.index_dir / "thumbs" / "0.jpg")
     assert max(thumb.size) <= 384
+
+
+def test_resume_does_not_rehash_known_duplicates(tmp_path):
+    """Resuming must skip unchanged known-duplicate paths entirely: no
+    re-inserted duplicate rows, dupe count stable across resumes."""
+    images = tmp_path / "imgs"
+    images.mkdir()
+    img = Image.new("RGB", (8, 8), (1, 2, 3))
+    img.save(images / "orig.png")
+    img.save(images / "copy.png")
+
+    cfg = _cfg(tmp_path, images)
+    build_index(cfg, FakeEmbedder())
+    r2 = build_index(cfg, FakeEmbedder())  # resume over same tree
+
+    assert r2["dupes"] == 1  # unchanged, not double-counted
+
+    con = sqlite3.connect(str(cfg.index_dir / "pixgrep.sqlite"))
+    dup_rows = con.execute("SELECT COUNT(*) FROM duplicates").fetchone()[0]
+    con.close()
+    assert dup_rows == 1  # no re-inserted rows on resume

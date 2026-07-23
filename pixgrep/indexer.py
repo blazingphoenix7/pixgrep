@@ -116,6 +116,14 @@ def build_index(cfg: Config, embedder, *, resume: bool = True) -> dict:
 
     path_idx = get_path_index(con) if resume else {}
     sha1_idx = get_sha1_index(con) if resume else {}
+    # Paths already recorded as duplicates: skip on resume without re-reading
+    # (re-hashing them would also re-insert duplicate rows every resume).
+    dupe_idx: dict[str, tuple[float | None, int | None]] = {}
+    if resume:
+        for p, sz, mt in con.execute(
+            "SELECT path, size, mtime FROM duplicates"
+        ).fetchall():
+            dupe_idx[p] = (mt, sz)
 
     files = find_images(cfg.image_root)
     total = len(files)
@@ -249,6 +257,10 @@ def build_index(cfg: Config, embedder, *, resume: bool = True) -> dict:
                 if cached_mtime == mtime and cached_size == size:
                     continue  # unchanged: skip
                 old_row = cached_row  # changed file: re-index in place
+            elif path_str in dupe_idx:
+                d_mtime, d_size = dupe_idx[path_str]
+                if d_mtime == mtime and d_size == size:
+                    continue  # unchanged known duplicate: skip re-hash
 
             try:
                 data = f.read_bytes()
