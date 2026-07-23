@@ -170,12 +170,44 @@ async function doSimilar(row) {
   }
 }
 
-function openLightbox(r) {
+async function openLightbox(r) {
   current = r;
   $("lb-img").src = `/api/image/${r.row}`;
   $("lb-name").textContent = r.name;
   $("lb-path").textContent = r.path;
+  $("lb-filmstrip").replaceChildren();
   $("lightbox").classList.remove("hidden");
+  try {
+    const resp = await fetch(`/api/group/${r.row}`);
+    if (resp.ok) {
+      const { results } = await resp.json();
+      if (results.length > 1) renderFilmstrip(results, r.row);
+    }
+  } catch {}
+}
+
+function renderFilmstrip(members, activeRow) {
+  const strip = $("lb-filmstrip");
+  for (const m of members) {
+    const img = document.createElement("img");
+    img.src = `/api/thumb/${m.row}`;
+    img.alt = "";
+    img.dataset.row = String(m.row);
+    img.className = "filmstrip-thumb" + (m.row === activeRow ? " active" : "");
+    img.addEventListener("click", () => selectFilmstripMember(m));
+    strip.appendChild(img);
+  }
+}
+
+function selectFilmstripMember(m) {
+  current = m;
+  $("lb-img").src = `/api/image/${m.row}`;
+  $("lb-name").textContent = m.name;
+  $("lb-path").textContent = m.path;
+  const strip = $("lb-filmstrip");
+  for (const thumb of strip.querySelectorAll(".filmstrip-thumb")) {
+    thumb.classList.toggle("active", parseInt(thumb.dataset.row) === m.row);
+  }
 }
 
 function closeLightbox() {

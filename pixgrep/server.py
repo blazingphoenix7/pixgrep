@@ -116,6 +116,14 @@ def create_app(engine: SearchEngine) -> FastAPI:
             raise HTTPException(status_code=404, detail="unknown row")
         return {"results": results}
 
+    @app.get("/api/group/{row}")
+    def group(row: int):
+        try:
+            results = engine.group_members(row)
+        except IndexError:
+            raise HTTPException(status_code=404, detail="unknown row")
+        return {"results": results}
+
     @app.get("/api/image/{row}")
     def image(row: int):
         try:

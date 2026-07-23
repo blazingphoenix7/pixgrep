@@ -96,3 +96,56 @@ def test_relevance_cutoff_ratio_is_tunable(engine):
     # a ratio above ~0.995 keeps only the single best hit
     results = engine.text_search("abcd", k=100, min_ratio=0.999)
     assert [r["row"] for r in results] == [0]
+
+
+# --- group_members tests ---
+
+@pytest.fixture()
+def grouped_engine(tmp_path):
+    """6 rows: rows 0,1,2 share group 'A'; rows 3,4 share 'B'; row 5 is singleton 'C'."""
+    emb = np.eye(6, dtype=np.float32)
+    paths = [f"p{i}.jpg" for i in range(6)]
+    groups = ["A", "A", "A", "B", "B", "C"]
+    save_index(tmp_path, paths, groups, emb)
+    return SearchEngine(tmp_path, FakeEmbedder())
+
+
+def test_group_members_includes_self(grouped_engine):
+    for row in range(6):
+        rows = [m["row"] for m in grouped_engine.group_members(row)]
+        assert row in rows
+
+
+def test_group_members_grouping(grouped_engine):
+    assert [m["row"] for m in grouped_engine.group_members(1)] == [0, 1, 2]
+    assert [m["row"] for m in grouped_engine.group_members(3)] == [3, 4]
+
+
+def test_group_members_ordering(grouped_engine):
+    rows = [m["row"] for m in grouped_engine.group_members(2)]
+    assert rows == sorted(rows)
+
+
+def test_group_members_singleton(grouped_engine):
+    assert [m["row"] for m in grouped_engine.group_members(5)] == [5]
+
+
+def test_group_members_cap(tmp_path):
+    n = 70
+    emb = np.eye(n, dtype=np.float32)
+    paths = [f"p{i}.jpg" for i in range(n)]
+    groups = ["X"] * n
+    save_index(tmp_path, paths, groups, emb)
+    eng = SearchEngine(tmp_path, FakeEmbedder())
+    assert len(eng.group_members(0)) == 60
+
+
+def test_group_members_result_shape(grouped_engine):
+    m = grouped_engine.group_members(0)[0]
+    for key in ("row", "path", "name", "group", "score"):
+        assert key in m
+
+
+def test_group_members_index_error(engine):
+    with pytest.raises(IndexError):
+        engine.group_members(99)

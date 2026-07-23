@@ -170,3 +170,47 @@ def test_api_search_cache_no_cache(client):
 def test_api_meta_cache_no_cache(client):
     r = client.get("/api/meta")
     assert r.headers.get("cache-control") == "no-cache"
+
+
+# --- /api/group tests ---
+
+@pytest.fixture()
+def group_client(tmp_path):
+    img_dir = tmp_path / "imgs"
+    img_dir.mkdir()
+    emb = np.eye(4, dtype=np.float32)
+    rel_paths = []
+    groups = ["shared", "shared", "solo", "solo2"]
+    for i in range(4):
+        p = img_dir / f"img{i}.jpg"
+        Image.new("RGB", (8, 8), (i * 60, 0, 0)).save(p)
+        rel_paths.append(str(p))
+    save_index(tmp_path / "index", rel_paths, groups, emb)
+    engine = SearchEngine(tmp_path / "index", FakeEmbedder())
+    return TestClient(create_app(engine))
+
+
+def test_group_results(group_client):
+    r = group_client.get("/api/group/0")
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert len(results) == 2
+    rows = [x["row"] for x in results]
+    assert 0 in rows and 1 in rows
+    assert "path" in results[0]
+    assert "name" in results[0]
+
+
+def test_group_singleton(group_client):
+    r = group_client.get("/api/group/2")
+    assert r.status_code == 200
+    assert len(r.json()["results"]) == 1
+
+
+def test_group_404(group_client):
+    assert group_client.get("/api/group/999").status_code == 404
+
+
+def test_group_cache_no_cache(group_client):
+    r = group_client.get("/api/group/0")
+    assert r.headers.get("cache-control") == "no-cache"

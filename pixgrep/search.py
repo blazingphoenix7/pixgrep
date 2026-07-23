@@ -88,6 +88,24 @@ class SearchEngine:
             filters=filters,
         )
 
+    @property
+    def _group_map(self) -> dict[str, list[int]]:
+        try:
+            return self._group_map_cache  # type: ignore[attr-defined]
+        except AttributeError:
+            idx: dict[str, list[int]] = {}
+            for i, gk in enumerate(self.groups):
+                idx.setdefault(gk, []).append(i)
+            self._group_map_cache = idx
+            return idx
+
+    def group_members(self, row: int) -> list[dict]:
+        if not 0 <= row < len(self.paths):
+            raise IndexError(f"row {row} out of range")
+        gk = self.groups[row]
+        members = sorted(self._group_map.get(gk, [row]))[:60]
+        return [self._result(r, 0.0) for r in members]
+
     def _rank(
         self,
         qv: np.ndarray,
