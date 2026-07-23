@@ -279,7 +279,13 @@ def main() -> None:
 
     cfg = load_config()
     print(f"Loading model {cfg.model_id} ...")
-    engine = SearchEngine(cfg.index_dir, cfg.make_embedder(), hybrid_weight=cfg.hybrid_weight, junk_threshold=cfg.junk_threshold)
+    engine = SearchEngine(
+        cfg.index_dir,
+        cfg.make_embedder(),
+        hybrid_weight=cfg.hybrid_weight,
+        junk_threshold=cfg.junk_threshold,
+        group_strip_pattern=cfg.group_strip_pattern,
+    )
     print(f"Index loaded: {engine.count} images. http://{args.host}:{args.port}")
     uvicorn.run(create_app(engine), host=args.host, port=args.port)
 

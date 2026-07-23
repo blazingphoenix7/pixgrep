@@ -149,3 +149,33 @@ def test_group_members_result_shape(grouped_engine):
 def test_group_members_index_error(engine):
     with pytest.raises(IndexError):
         engine.group_members(99)
+
+
+def test_group_members_includes_duplicate_aliases(tmp_path):
+    """A row whose discarded exact-duplicate copy carries another style's
+    filename joins that style's group — in both lookup directions."""
+    from pixgrep.store import open_db
+
+    emb = np.eye(3, dtype=np.float32)
+    # row 2 was indexed under a junk name; its SKU-named copy became a dupe
+    paths = ["ab100w.jpg", "ab100y.jpg", "final_approved.jpg"]
+    groups = ["ab100", "ab100", "final_approved"]
+    save_index(tmp_path, paths, groups, emb)
+    con = open_db(tmp_path)
+    con.execute(
+        "INSERT INTO duplicates (path, size, mtime, sha1, duplicate_of) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("somewhere/AB100R.jpg", 1, 1.0, "x", 2),
+    )
+    con.commit()
+    con.close()
+
+    pattern = r"(?<=\d)[a-z]+\d*[a-z]*$"
+    eng = SearchEngine(tmp_path, FakeEmbedder(), group_strip_pattern=pattern)
+
+    assert [m["row"] for m in eng.group_members(0)] == [0, 1, 2]  # sibling side
+    assert [m["row"] for m in eng.group_members(2)] == [0, 1, 2]  # orphan side
+
+    # without a pattern the alias grouping is off (old behavior)
+    eng_off = SearchEngine(tmp_path, FakeEmbedder())
+    assert [m["row"] for m in eng_off.group_members(2)] == [2]

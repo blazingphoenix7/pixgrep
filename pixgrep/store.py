@@ -104,12 +104,12 @@ def open_db(index_dir: Path) -> sqlite3.Connection:
             val TEXT
         )
     """)
-    con.execute("CREATE INDEX IF NOT EXISTS idx_images_sha1 ON images(sha1)")
-    # Migrate old 3-col schema to v2 if needed
+    # Migrate old 3-col schema to v2 if needed (BEFORE indexing sha1)
     cols = {r[1] for r in con.execute("PRAGMA table_info(images)").fetchall()}
     for col, typedef in [("mtime", "REAL"), ("size", "INTEGER"), ("sha1", "TEXT")]:
         if col not in cols:
             con.execute(f"ALTER TABLE images ADD COLUMN {col} {typedef}")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_images_sha1 ON images(sha1)")
     con.commit()
     return con
 

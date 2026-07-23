@@ -18,12 +18,14 @@ class SearchEngine:
         embedder,
         hybrid_weight: float = 0.08,
         junk_threshold: float = 0.0,
+        group_strip_pattern: str = "",
     ):
         self.index_dir = Path(index_dir)
         self.paths, self.groups, self.emb = load_index(self.index_dir)
         self.embedder = embedder
         self._hybrid_weight = hybrid_weight
         self._junk_threshold = junk_threshold
+        self._group_strip_pattern = group_strip_pattern
         self._tags = TagStore(self.index_dir)
         self._junk_scores = load_junk_scores(self.index_dir, len(self.paths))
 
@@ -96,15 +98,48 @@ class SearchEngine:
             idx: dict[str, list[int]] = {}
             for i, gk in enumerate(self.groups):
                 idx.setdefault(gk, []).append(i)
+            # A row's discarded exact-duplicate copies may carry different
+            # filenames; any group key those names produce is an alias for
+            # the row, so it also joins those groups.
+            alt_keys: dict[int, set[str]] = {}
+            if self._group_strip_pattern:
+                import sqlite3
+
+                from .filenames import group_key as make_group_key
+
+                try:
+                    con = sqlite3.connect(str(self.index_dir / "pixgrep.sqlite"))
+                    try:
+                        dupes = con.execute(
+                            "SELECT path, duplicate_of FROM duplicates "
+                            "WHERE duplicate_of IS NOT NULL"
+                        ).fetchall()
+                    finally:
+                        con.close()
+                except sqlite3.OperationalError:
+                    dupes = []
+                for p, row in dupes:
+                    if not 0 <= row < len(self.groups):
+                        continue
+                    alt = make_group_key(Path(p).name, self._group_strip_pattern)
+                    if alt and alt != self.groups[row]:
+                        bucket = idx.setdefault(alt, [])
+                        if row not in bucket:
+                            bucket.append(row)
+                        alt_keys.setdefault(row, set()).add(alt)
             self._group_map_cache = idx
+            self._row_alt_keys = alt_keys
             return idx
 
     def group_members(self, row: int) -> list[dict]:
         if not 0 <= row < len(self.paths):
             raise IndexError(f"row {row} out of range")
-        gk = self.groups[row]
-        members = sorted(self._group_map.get(gk, [row]))[:60]
-        return [self._result(r, 0.0) for r in members]
+        gmap = self._group_map
+        keys = {self.groups[row]} | getattr(self, "_row_alt_keys", {}).get(row, set())
+        members: set[int] = {row}
+        for gk in keys:
+            members.update(gmap.get(gk, []))
+        return [self._result(r, 0.0) for r in sorted(members)[:60]]
 
     def _rank(
         self,
