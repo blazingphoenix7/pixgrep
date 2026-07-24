@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from .junk import load_junk_scores
+from .query_norm import normalize_query
 from .store import load_index
 from .tags import TagStore
 
@@ -47,6 +48,7 @@ class SearchEngine:
         filters: dict[str, str] | None = None,
         hybrid_weight: float | None = None,
     ) -> list[dict]:
+        query = normalize_query(query)
         qv = self.embedder.embed_texts([query])[0]
         hw = hybrid_weight if hybrid_weight is not None else self._hybrid_weight
         lex = None
