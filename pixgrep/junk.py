@@ -13,6 +13,15 @@ _DEFAULT_JUNK_PROMPTS = [
     "logo graphic",
     "clip art",
     "diagram",
+    "stock photo of a couple",
+    "people hugging in a lifestyle scene",
+    "romantic greeting-card photograph",
+    "advertising banner with large text",
+    "photo of a person's face portrait",
+    "gift box wrapping scene",
+    "couple celebrating a special occasion",
+    "marketing lifestyle photograph of people",
+    "birthday party celebration scene",
 ]
 
 _DEFAULT_GOOD_PROMPTS = [
@@ -20,6 +29,11 @@ _DEFAULT_GOOD_PROMPTS = [
     "photograph of jewelry",
     "studio product photo",
     "photo of an object",
+    "close-up of jewelry worn on a hand",
+    "close-up of an earring worn on an ear",
+    "jewelry modeled on a person, jewelry in focus",
+    "close-up of a necklace worn around a neck",
+    "close-up product shot of a ring on a finger",
 ]
 
 

@@ -4,7 +4,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pixgrep.junk import junk_scores, load_junk_scores, save_junk_scores
+from pixgrep.junk import (
+    _DEFAULT_GOOD_PROMPTS,
+    _DEFAULT_JUNK_PROMPTS,
+    junk_scores,
+    load_junk_scores,
+    save_junk_scores,
+)
 from pixgrep.search import SearchEngine
 from pixgrep.store import save_index
 
@@ -110,6 +116,13 @@ def test_junk_scores_multi_prompt_uses_max():
     emb = np.array([[0.0, 1.0, 0.0]], dtype=np.float32)
     s = junk_scores(emb, embedder, junk_prompts=["j0", "j1"], good_prompts=["g0"])
     assert s[0] == pytest.approx(1.0, abs=1e-5)
+
+
+def test_default_prompt_lists_nonempty_and_disjoint():
+    """Default junk/good prompt lists must both be populated and share no entries."""
+    assert len(_DEFAULT_JUNK_PROMPTS) > 0
+    assert len(_DEFAULT_GOOD_PROMPTS) > 0
+    assert set(_DEFAULT_JUNK_PROMPTS).isdisjoint(set(_DEFAULT_GOOD_PROMPTS))
 
 
 def test_junk_scores_default_prompts_shape():
