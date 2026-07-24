@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import numpy as np
 
+from .feedback import FeedbackStore
 from .junk import load_junk_scores
 from .query_norm import normalize_query
 from .store import load_index
@@ -23,6 +25,7 @@ class SearchEngine:
         near_dupe_cos: float = 0.985,
         lexical_inject_k: int = 50,
         junk_soft_weight: float = 1.0,
+        feedback: FeedbackStore | None = None,
     ):
         self.index_dir = Path(index_dir)
         self.paths, self.groups, self.emb = load_index(self.index_dir)
@@ -35,6 +38,7 @@ class SearchEngine:
         self._junk_soft_weight = junk_soft_weight
         self._tags = TagStore(self.index_dir)
         self._junk_scores = load_junk_scores(self.index_dir, len(self.paths))
+        self._feedback = feedback
 
     @property
     def count(self) -> int:
@@ -44,6 +48,40 @@ class SearchEngine:
         if not 0 <= row < len(self.paths):
             raise IndexError(f"row {row} out of range")
         return self.paths[row]
+
+    @property
+    def _sha1_maps(self) -> tuple[dict[int, str], dict[str, list[int]]]:
+        try:
+            return self._sha1_maps_cache  # type: ignore[attr-defined]
+        except AttributeError:
+            row_to_sha1: dict[int, str] = {}
+            sha1_to_rows: dict[str, list[int]] = {}
+            db_path = self.index_dir / "pixgrep.sqlite"
+            if db_path.exists():
+                con = sqlite3.connect(str(db_path))
+                try:
+                    for row, sha1 in con.execute(
+                        "SELECT row, sha1 FROM images WHERE sha1 IS NOT NULL"
+                    ).fetchall():
+                        row_to_sha1[row] = sha1
+                        sha1_to_rows.setdefault(sha1, []).append(row)
+                except sqlite3.OperationalError:
+                    pass
+                finally:
+                    con.close()
+            self._sha1_maps_cache = (row_to_sha1, sha1_to_rows)
+            return self._sha1_maps_cache
+
+    def sha1_for_row(self, row: int) -> str | None:
+        row_to_sha1, _ = self._sha1_maps
+        return row_to_sha1.get(row)
+
+    def rows_for_sha1s(self, sha1s) -> set[int]:
+        _, sha1_to_rows = self._sha1_maps
+        rows: set[int] = set()
+        for s in sha1s:
+            rows.update(sha1_to_rows.get(s, []))
+        return rows
 
     def text_search(
         self,
@@ -64,11 +102,16 @@ class SearchEngine:
                 lex = self._tags.lexical_scores(query, len(self.paths))
             if self._lexical_inject_k > 0:
                 inject_rows = self._tags.strong_match_rows(query)
+        suppress_rows = None
+        if self._feedback is not None:
+            suppressed_sha1s = self._feedback.suppressed_sha1s(query.lower().strip())
+            if suppressed_sha1s:
+                suppress_rows = self.rows_for_sha1s(suppressed_sha1s)
         return self._rank(
             qv, k,
             min_ratio=min_ratio, min_score=min_score,
             filters=filters, lex_scores=lex, hybrid_weight=hw,
-            inject_rows=inject_rows,
+            inject_rows=inject_rows, suppress_rows=suppress_rows,
         )
 
     def image_search(
@@ -165,6 +208,7 @@ class SearchEngine:
         lex_scores: np.ndarray | None = None,
         hybrid_weight: float = 0.0,
         inject_rows: np.ndarray | None = None,
+        suppress_rows: set[int] | None = None,
     ) -> list[dict]:
         sims = self.emb @ qv.astype(np.float32)
 
@@ -176,6 +220,13 @@ class SearchEngine:
 
         if exclude is not None:
             sims[exclude] = -np.inf
+
+        # Feedback suppression: rows marked bad FOR THIS QUERY by any user,
+        # masked like exclude/filters — before the relevance floors below.
+        if suppress_rows:
+            supp = [r for r in suppress_rows if 0 <= r < len(sims)]
+            if supp:
+                sims[supp] = -np.inf
 
         # Apply filter restriction: non-matching rows scored as -inf
         if filters and self._tags.has_data:

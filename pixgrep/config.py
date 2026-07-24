@@ -25,6 +25,7 @@ class Config:
     near_dupe_cos: float = 0.985  # 0 = disabled
     lexical_inject_k: int = 50  # 0 = disabled
     junk_soft_weight: float = 1.0  # 0 = disabled
+    feedback_db: str = ""  # empty = <index_dir>/feedback.sqlite
 
     @property
     def db_path(self) -> Path:
@@ -33,6 +34,10 @@ class Config:
     @property
     def emb_path(self) -> Path:
         return self.index_dir / "embeddings.npy"
+
+    @property
+    def feedback_db_path(self) -> Path:
+        return Path(self.feedback_db) if self.feedback_db else self.index_dir / "feedback.sqlite"
 
     def make_embedder(self):
         """Build the embedder the config asks for (torch by default)."""
@@ -77,4 +82,5 @@ def load_config(path="config.local.json") -> Config:
         near_dupe_cos=float(data.get("near_dupe_cos", 0.985)),
         lexical_inject_k=int(data.get("lexical_inject_k", 50)),
         junk_soft_weight=float(data.get("junk_soft_weight", 1.0)),
+        feedback_db=data.get("feedback_db", ""),
     )

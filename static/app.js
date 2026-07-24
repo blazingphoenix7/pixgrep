@@ -5,6 +5,14 @@ const activeFilters = {}; // {field: value}
 let isSearching = false;
 let tray = []; // ordered row integers for the export deck
 
+// ── Feedback (thumbs-down) + user identity ─────────────────────────────────────
+const USER_KEY = "pixgrep-user";
+const FILTERS_OPEN_KEY = "pixgrep-filters-open";
+let currentUser = localStorage.getItem(USER_KEY) || "";
+let currentQuery = null; // text query the current result set was rendered for; null when not text-scoped (image/similar search)
+let markedRows = new Set(); // rows marked bad for currentQuery
+let pendingFeedback = null; // row awaiting a name before its toggle can fire
+
 async function meta() {
   try {
     const r = await fetch("/api/meta");
@@ -52,7 +60,7 @@ async function loadFacets() {
 
       container.appendChild(row);
     }
-    container.classList.remove("hidden");
+    $("filter-toolbar").classList.remove("hidden");
   } catch {}
 }
 
@@ -67,7 +75,46 @@ function toggleChip(chip, field, value) {
     activeFilters[field] = value;
     chip.classList.add("active");
   }
+  renderActivePills();
 }
+
+function renderActivePills() {
+  const container = $("active-pills");
+  container.replaceChildren();
+  for (const [field, value] of Object.entries(activeFilters)) {
+    const pill = document.createElement("span");
+    pill.className = "active-pill";
+    const label = document.createElement("span");
+    label.textContent = `${field.replace(/_/g, " ")}: ${value}`;
+    const rm = document.createElement("button");
+    rm.className = "active-pill-remove";
+    rm.textContent = "×";
+    rm.title = "Remove filter";
+    rm.addEventListener("click", () => removeFilter(field));
+    pill.appendChild(label);
+    pill.appendChild(rm);
+    container.appendChild(pill);
+  }
+}
+
+function removeFilter(field) {
+  delete activeFilters[field];
+  const chip = $("filters").querySelector(`.chip.active[data-field="${field}"]`);
+  if (chip) chip.classList.remove("active");
+  renderActivePills();
+  doSearch();
+}
+
+function setFiltersOpen(open) {
+  $("filters").classList.toggle("open", open);
+  $("filters-toggle").setAttribute("aria-expanded", String(open));
+  $("filters-toggle").textContent = open ? "Filters ▴" : "Filters ▾";
+  localStorage.setItem(FILTERS_OPEN_KEY, open ? "1" : "0");
+}
+
+$("filters-toggle").addEventListener("click", () => {
+  setFiltersOpen(!$("filters").classList.contains("open"));
+});
 
 function appendFilters(url) {
   for (const [field, value] of Object.entries(activeFilters)) {
@@ -153,7 +200,87 @@ function buildCard(r) {
     });
     card.appendChild(addBtn);
 
+    if (currentQuery) {
+      const dnBtn = document.createElement("button");
+      dnBtn.className = "down-btn";
+      dnBtn.title = "Mark as bad result";
+      dnBtn.textContent = "👎";
+      dnBtn.dataset.row = String(r.row);
+      if (markedRows.has(r.row)) {
+        dnBtn.classList.add("marked");
+        card.classList.add("marked-bad");
+      }
+      dnBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handleDownClick(r.row);
+      });
+      card.appendChild(dnBtn);
+    }
+
     return card;
+}
+
+// ── Feedback (thumbs-down) ───────────────────────────────────────────────────
+
+function paintMarked(row, marked) {
+  if (marked) markedRows.add(row); else markedRows.delete(row);
+  const btn = grid.querySelector(`.down-btn[data-row="${row}"]`);
+  if (btn) {
+    btn.classList.toggle("marked", marked);
+    btn.closest(".card").classList.toggle("marked-bad", marked);
+  }
+  if (current && current.row === row) {
+    $("lb-down").classList.toggle("marked", marked);
+  }
+}
+
+function paintVisibleMarks() {
+  for (const btn of grid.querySelectorAll(".down-btn")) {
+    const row = parseInt(btn.dataset.row, 10);
+    const marked = markedRows.has(row);
+    btn.classList.toggle("marked", marked);
+    btn.closest(".card").classList.toggle("marked-bad", marked);
+  }
+  if (current && currentQuery) {
+    $("lb-down").classList.toggle("marked", markedRows.has(current.row));
+  }
+}
+
+async function refreshMarks(query) {
+  try {
+    const url = new URL("/api/feedback/marks", location.origin);
+    url.searchParams.set("query", query);
+    const r = await fetch(url);
+    if (!r.ok) return;
+    const { rows } = await r.json();
+    markedRows = new Set(rows);
+    paintVisibleMarks();
+  } catch {}
+}
+
+async function toggleFeedback(row) {
+  if (!currentQuery) return;
+  try {
+    const r = await fetch("/api/feedback/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: currentUser, query: currentQuery, row }),
+    });
+    if (!r.ok) { status.textContent = `Could not update feedback (${r.status}).`; return; }
+    const { marked } = await r.json();
+    paintMarked(row, marked);
+  } catch {
+    status.textContent = "Network error — could not update feedback.";
+  }
+}
+
+function handleDownClick(row) {
+  if (!currentUser) {
+    pendingFeedback = row;
+    openUserPrompt();
+    return;
+  }
+  toggleFeedback(row);
 }
 
 function setSearching(active) {
@@ -173,7 +300,10 @@ async function doSearch() {
     appendFilters(url);
     const r = await fetch(url);
     if (!r.ok) { status.textContent = `Search failed (${r.status}).`; return; }
+    currentQuery = q;
+    markedRows = new Set();
     render((await r.json()).results);
+    refreshMarks(q);
   } catch {
     status.textContent = "Network error — is the server running?";
   } finally {
@@ -193,6 +323,8 @@ async function doImageSearch(file) {
     fd.append("file", file);
     const r = await fetch(url, { method: "POST", body: fd });
     if (!r.ok) { status.textContent = "Could not read that image."; return; }
+    currentQuery = null;
+    markedRows = new Set();
     render((await r.json()).results);
   } catch {
     status.textContent = "Network error — is the server running?";
@@ -211,6 +343,8 @@ async function doSimilar(row) {
     appendFilters(url);
     const r = await fetch(url);
     if (!r.ok) { status.textContent = "Search failed."; return; }
+    currentQuery = null;
+    markedRows = new Set();
     render((await r.json()).results);
   } catch {
     status.textContent = "Network error — is the server running?";
@@ -225,6 +359,7 @@ async function openLightbox(r) {
   $("lb-name").textContent = r.name;
   $("lb-path").textContent = r.path;
   $("lb-filmstrip").replaceChildren();
+  updateLightboxDownBtn();
   $("lightbox").classList.remove("hidden");
   try {
     const resp = await fetch(`/api/group/${r.row}`);
@@ -253,10 +388,18 @@ function selectFilmstripMember(m) {
   $("lb-img").src = `/api/image/${m.row}`;
   $("lb-name").textContent = m.name;
   $("lb-path").textContent = m.path;
+  updateLightboxDownBtn();
   const strip = $("lb-filmstrip");
   for (const thumb of strip.querySelectorAll(".filmstrip-thumb")) {
     thumb.classList.toggle("active", parseInt(thumb.dataset.row) === m.row);
   }
+}
+
+function updateLightboxDownBtn() {
+  const btn = $("lb-down");
+  if (!currentQuery || !current) { btn.classList.add("hidden"); return; }
+  btn.classList.remove("hidden");
+  btn.classList.toggle("marked", markedRows.has(current.row));
 }
 
 function closeLightbox() {
@@ -270,13 +413,17 @@ $("lightbox").addEventListener("click", (e) => {
   if (e.target === $("lightbox")) closeLightbox();
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeLightbox();
+  if (e.key === "Escape") { closeLightbox(); closeUserPrompt(); }
 });
 $("lb-copy").addEventListener("click", () => {
   if (current) navigator.clipboard.writeText(current.path);
 });
 $("lb-similar").addEventListener("click", () => {
   if (current) { closeLightbox(); doSimilar(current.row); }
+});
+$("lb-down").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (current) handleDownClick(current.row);
 });
 
 const drop = $("drop");
@@ -287,6 +434,17 @@ const drop = $("drop");
 drop.addEventListener("drop", (e) => {
   const f = e.dataTransfer.files[0];
   if (f) doImageSearch(f);
+});
+
+const browseInput = $("browse-input");
+$("browse-btn").addEventListener("click", (e) => {
+  e.preventDefault();
+  browseInput.click();
+});
+browseInput.addEventListener("change", () => {
+  const f = browseInput.files[0];
+  if (f) doImageSearch(f);
+  browseInput.value = ""; // allow re-selecting the same file
 });
 
 // ── Tray ──────────────────────────────────────────────────────────────────────
@@ -391,6 +549,58 @@ $("tray-clear").addEventListener("click", () => {
 // Restore tray from localStorage on load
 try { tray = JSON.parse(localStorage.getItem("pixgrep-tray") || "[]"); } catch { tray = []; }
 renderTray();
+
+// ── User identity ────────────────────────────────────────────────────────────
+
+function renderUserBadge() {
+  const badge = $("user-badge");
+  if (currentUser) {
+    $("user-badge-btn").textContent = `▾ ${currentUser}`;
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+
+function openUserPrompt() {
+  $("user-name-input").value = currentUser;
+  $("user-prompt").classList.remove("hidden");
+  $("user-name-input").focus();
+}
+
+function closeUserPrompt() {
+  $("user-prompt").classList.add("hidden");
+}
+
+function saveUserName() {
+  const name = $("user-name-input").value.trim().slice(0, 40);
+  if (!name) return;
+  currentUser = name;
+  localStorage.setItem(USER_KEY, currentUser);
+  renderUserBadge();
+  closeUserPrompt();
+  if (pendingFeedback !== null) {
+    const row = pendingFeedback;
+    pendingFeedback = null;
+    toggleFeedback(row);
+  }
+}
+
+$("user-badge-btn").addEventListener("click", () => {
+  pendingFeedback = null;
+  openUserPrompt();
+});
+$("user-name-save").addEventListener("click", saveUserName);
+$("user-name-input").addEventListener("keydown", (e) => { if (e.key === "Enter") saveUserName(); });
+document.addEventListener("click", (e) => {
+  const prompt = $("user-prompt");
+  if (prompt.classList.contains("hidden")) return;
+  if (prompt.contains(e.target) || e.target === $("user-badge-btn")) return;
+  closeUserPrompt();
+});
+
+renderUserBadge();
+setFiltersOpen(localStorage.getItem(FILTERS_OPEN_KEY) === "1");
 
 meta();
 loadFacets();

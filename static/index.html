@@ -4,12 +4,20 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>pixgrep</title>
-<link rel="stylesheet" href="/static/style.css?v=7" />
+<link rel="stylesheet" href="/static/style.css?v=8" />
 </head>
 <body>
 <header>
   <h1>pix<span class="accent">grep</span></h1>
   <p class="tagline">grep for your images</p>
+  <div id="user-badge" class="user-badge hidden">
+    <button id="user-badge-btn" class="user-badge-btn"></button>
+  </div>
+  <div id="user-prompt" class="user-prompt hidden">
+    <label for="user-name-input">Your name:</label>
+    <input id="user-name-input" type="text" maxlength="40" placeholder="e.g. Sam" />
+    <button id="user-name-save">Save</button>
+  </div>
 </header>
 
 <main>
@@ -20,10 +28,16 @@
   </div>
 
   <div id="drop" class="drop">
-    <span>…or drag &amp; drop an image here to find similar ones</span>
+    <span>…or drag &amp; drop an image here to find similar ones — or
+      <button id="browse-btn" class="browse-btn" type="button">browse</button></span>
+    <input id="browse-input" type="file" accept="image/*" hidden>
   </div>
 
-  <div id="filters" class="filters hidden"></div>
+  <div id="filter-toolbar" class="filter-toolbar hidden">
+    <button id="filters-toggle" class="filters-toggle" aria-expanded="false">Filters ▾</button>
+    <div id="active-pills" class="active-pills"></div>
+  </div>
+  <div id="filters" class="filters"></div>
 
   <div id="status" class="status"></div>
   <div id="grid" class="grid"></div>
@@ -40,6 +54,7 @@
         <button id="lb-copy">Copy path</button>
         <button id="lb-similar">More like this</button>
         <button id="lb-add-deck">Add to deck</button>
+        <button id="lb-down" class="lb-down-btn hidden" title="Mark as bad result">👎</button>
         <button id="lb-close">Close</button>
       </div>
     </div>
@@ -64,6 +79,6 @@
   </div>
 </div>
 
-<script src="/static/app.js?v=7"></script>
+<script src="/static/app.js?v=8"></script>
 </body>
 </html>

@@ -12,6 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from pydantic import BaseModel
 
+from .feedback import FeedbackStore, normalize_query_key
 from .search import SearchEngine
 
 
@@ -47,6 +48,12 @@ class _ExportRequest(BaseModel):
     rows: list[int]
     layout: Literal["1", "4"] = "1"
     captions: bool = True
+
+
+class _FeedbackToggleRequest(BaseModel):
+    user: str
+    query: str
+    row: int
 
 
 def _prepare_image(path: Path) -> tuple:
@@ -122,7 +129,7 @@ def _build_pptx(prepared: list, layout: str, captions: bool) -> bytes:
     return out.getvalue()
 
 
-def create_app(engine: SearchEngine) -> FastAPI:
+def create_app(engine: SearchEngine, feedback: FeedbackStore | None = None) -> FastAPI:
     app = FastAPI(title="pixgrep")
     app.add_middleware(_CacheControlMiddleware)
 
@@ -205,6 +212,69 @@ def create_app(engine: SearchEngine) -> FastAPI:
             raise HTTPException(status_code=404, detail="unknown row")
         return {"results": results}
 
+    @app.post("/api/feedback/toggle")
+    def feedback_toggle(req: _FeedbackToggleRequest):
+        if feedback is None:
+            raise HTTPException(status_code=404, detail="feedback not configured")
+        user = req.user.strip()
+        query = req.query.strip()
+        if not user or not query:
+            raise HTTPException(status_code=400, detail="user and query are required")
+        try:
+            path = engine.path_for(req.row)
+        except IndexError:
+            raise HTTPException(status_code=404, detail="unknown row")
+        sha1 = engine.sha1_for_row(req.row)
+        if sha1 is None:
+            raise HTTPException(status_code=404, detail="unknown row")
+        marked = feedback.toggle(user, normalize_query_key(query), sha1, req.row, path)
+        return {"marked": marked}
+
+    @app.get("/api/feedback/marks")
+    def feedback_marks(query: str = Query(...)):
+        if feedback is None:
+            return {"rows": []}
+        sha1s = feedback.suppressed_sha1s(normalize_query_key(query))
+        rows = sorted(engine.rows_for_sha1s(sha1s)) if sha1s else []
+        return {"rows": rows}
+
+    @app.get("/api/feedback/list")
+    def feedback_list():
+        if feedback is None:
+            return {"marks": []}
+        marks = feedback.list_all()
+        return {
+            "marks": [
+                {
+                    "id": m["id"],
+                    "user": m["user"],
+                    "query": m["query"],
+                    "sha1": m["sha1"],
+                    "path": m["path"],
+                    "created": m["created"],
+                }
+                for m in marks
+            ]
+        }
+
+    @app.delete("/api/feedback/user/{user}")
+    def feedback_delete_user(user: str):
+        if feedback is None:
+            return {"deleted": 0}
+        return {"deleted": feedback.delete_user(user)}
+
+    @app.delete("/api/feedback/query")
+    def feedback_delete_query(query: str = Query(...)):
+        if feedback is None:
+            return {"deleted": 0}
+        return {"deleted": feedback.delete_query(normalize_query_key(query))}
+
+    @app.delete("/api/feedback/{id}")
+    def feedback_delete(id: int):
+        if feedback is None:
+            raise HTTPException(status_code=404, detail="feedback not configured")
+        return {"deleted": feedback.delete(id)}
+
     @app.get("/api/image/{row}")
     def image(row: int):
         try:
@@ -279,6 +349,7 @@ def main() -> None:
 
     cfg = load_config()
     print(f"Loading model {cfg.model_id} ...")
+    feedback = FeedbackStore(cfg.feedback_db_path)
     engine = SearchEngine(
         cfg.index_dir,
         cfg.make_embedder(),
@@ -288,9 +359,10 @@ def main() -> None:
         near_dupe_cos=cfg.near_dupe_cos,
         lexical_inject_k=cfg.lexical_inject_k,
         junk_soft_weight=cfg.junk_soft_weight,
+        feedback=feedback,
     )
     print(f"Index loaded: {engine.count} images. http://{args.host}:{args.port}")
-    uvicorn.run(create_app(engine), host=args.host, port=args.port)
+    uvicorn.run(create_app(engine, feedback), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
