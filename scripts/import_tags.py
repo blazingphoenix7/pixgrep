@@ -56,6 +56,11 @@ def main() -> None:
         default=None,
         help="Path to config JSON (default: config.local.json).",
     )
+    parser.add_argument(
+        "--merge",
+        action="store_true",
+        help="Merge into existing tables instead of dropping and recreating.",
+    )
     args = parser.parse_args()
 
     mapping = json.loads(Path(args.mapping).read_text(encoding="utf-8"))
@@ -78,6 +83,7 @@ def main() -> None:
         filename_key=filename_key,
         field_keys=field_keys,
         text_keys=text_keys,
+        merge=args.merge,
     )
     print(report)
 

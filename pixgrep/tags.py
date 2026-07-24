@@ -32,6 +32,7 @@ def import_tags(
     filename_key: str,
     field_keys: dict[str, str],
     text_keys: list[str],
+    merge: bool = False,
 ) -> ImportReport:
     """Import per-image tag data into the index DB.
 
@@ -40,6 +41,12 @@ def import_tags(
       tag_text(row, text)       — lowercased concatenation of text_keys + field values
 
     Joins records to index rows by case-insensitive basename match on filename_key.
+
+    merge=False (default): drops and recreates both tables before importing.
+    merge=True: creates tables if absent; for each matched row, deletes existing
+      (row, field) tags for fields being written, then inserts new values;
+      tag_text is replaced (INSERT OR REPLACE) when the incoming record has text.
+
     Returns an ImportReport with match counts.
     """
     index_dir = Path(index_dir)
@@ -50,18 +57,32 @@ def import_tags(
             Path(p).name.lower(): r for r, p in db_rows
         }
 
-        con.execute("DROP TABLE IF EXISTS tags")
-        con.execute("DROP TABLE IF EXISTS tag_text")
-        con.execute("CREATE TABLE tags (row INTEGER, field TEXT, value TEXT)")
-        con.execute("CREATE INDEX idx_tags_row ON tags(row)")
-        con.execute("CREATE INDEX idx_tags_field_value ON tags(field, value)")
-        con.execute("CREATE TABLE tag_text (row INTEGER PRIMARY KEY, text TEXT)")
+        if not merge:
+            con.execute("DROP TABLE IF EXISTS tags")
+            con.execute("DROP TABLE IF EXISTS tag_text")
+            con.execute("CREATE TABLE tags (row INTEGER, field TEXT, value TEXT)")
+            con.execute("CREATE INDEX idx_tags_row ON tags(row)")
+            con.execute("CREATE INDEX idx_tags_field_value ON tags(field, value)")
+            con.execute("CREATE TABLE tag_text (row INTEGER PRIMARY KEY, text TEXT)")
+        else:
+            con.execute(
+                "CREATE TABLE IF NOT EXISTS tags (row INTEGER, field TEXT, value TEXT)"
+            )
+            con.execute("CREATE INDEX IF NOT EXISTS idx_tags_row ON tags(row)")
+            con.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tags_field_value ON tags(field, value)"
+            )
+            con.execute(
+                "CREATE TABLE IF NOT EXISTS tag_text (row INTEGER PRIMARY KEY, text TEXT)"
+            )
 
         matched = 0
         unmatched = 0
         rows_with_tags: set[int] = set()
         tag_rows_data: list[tuple[int, str, str]] = []
         text_rows_data: list[tuple[int, str]] = []
+        # (row, field) pairs whose existing tags should be deleted before insert
+        delete_pairs: list[tuple[int, str]] = []
 
         for rec in records:
             fname = str(rec.get(filename_key, "") or "").strip()
@@ -80,6 +101,8 @@ def import_tags(
             for canonical, col_key in field_keys.items():
                 val = str(rec.get(col_key, "") or "").strip().lower()
                 if val:
+                    if merge:
+                        delete_pairs.append((db_row, canonical))
                     tag_rows_data.append((db_row, canonical, val))
                     field_vals.append(val)
 
@@ -93,12 +116,24 @@ def import_tags(
             if combined.strip():
                 text_rows_data.append((db_row, combined))
 
-        con.executemany(
-            "INSERT INTO tags (row, field, value) VALUES (?, ?, ?)", tag_rows_data
-        )
-        con.executemany(
-            "INSERT INTO tag_text (row, text) VALUES (?, ?)", text_rows_data
-        )
+        if merge:
+            for pair in delete_pairs:
+                con.execute("DELETE FROM tags WHERE row=? AND field=?", pair)
+            con.executemany(
+                "INSERT INTO tags (row, field, value) VALUES (?, ?, ?)", tag_rows_data
+            )
+            for row_text in text_rows_data:
+                con.execute(
+                    "INSERT OR REPLACE INTO tag_text (row, text) VALUES (?, ?)",
+                    row_text,
+                )
+        else:
+            con.executemany(
+                "INSERT INTO tags (row, field, value) VALUES (?, ?, ?)", tag_rows_data
+            )
+            con.executemany(
+                "INSERT INTO tag_text (row, text) VALUES (?, ?)", text_rows_data
+            )
         con.commit()
 
         rows_without_tags = len(db_rows) - len(rows_with_tags)

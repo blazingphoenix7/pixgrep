@@ -16,10 +16,13 @@
 *.mp4
 *.mov
 
-# ── Spreadsheets / data files ────────────────────────────────
+# ── Spreadsheets / data files / raw exports ──────────────────
 *.xlsx
 *.xls
 *.csv
+*.txt
+*.TXT
+*.dat
 
 # ── Root-level HTML / Markdown are legacy or data-bearing;
 #    keep only README at the root. (Committed docs live in docs/.)
