@@ -434,6 +434,44 @@ def test_unmatched_index_rows_counted(tmp_path):
     assert result["matched_exact"] + result["matched_base"] == 0
 
 
+def test_import_styles_fresh_wipes_existing_tags(tmp_path):
+    """fresh=True drops prior tags/tag_text entirely before rematching —
+    unlike merge mode, rows from other sources do NOT survive."""
+    _mk_index(tmp_path, ["6000wg", "7000rg"], ["6000", "7000"])
+    import_tags(
+        tmp_path,
+        [{"fn": "7000rg.jpg", "gem": "diamond"}],
+        "fn",
+        {"gemstone": "gem"},
+        [],
+    )
+    erp_rows = [_erp_row(**{"Style #": "6000w", "Metal Color": "W", "Category": "RNG"})]
+    import_styles_core(tmp_path, erp_rows, MAPS, STRIP_PATTERN, fresh=True)
+
+    tags = _tags(tmp_path)
+    # row 1's pre-existing gemstone tag from another source is gone
+    assert not any(r == 1 and f == "gemstone" for r, f, _ in tags)
+    # row 0 metal is freshly written
+    assert any(r == 0 and f == "metal" for r, f, _ in tags)
+
+
+def test_import_styles_fresh_dry_run_does_not_drop(tmp_path):
+    """fresh + dry_run must not touch the DB at all."""
+    _mk_index(tmp_path, ["7000rg"], ["7000"])
+    import_tags(
+        tmp_path,
+        [{"fn": "7000rg.jpg", "gem": "diamond"}],
+        "fn",
+        {"gemstone": "gem"},
+        [],
+    )
+    erp_rows = [_erp_row(**{"Style #": "7000r", "Metal Color": "R", "Category": "RNG"})]
+    import_styles_core(tmp_path, erp_rows, MAPS, STRIP_PATTERN, dry_run=True, fresh=True)
+
+    tags = _tags(tmp_path)
+    assert any(r == 0 and f == "gemstone" and v == "diamond" for r, f, v in tags)
+
+
 def test_import_styles_is_merge(tmp_path):
     """import_styles_core operates in merge mode — pre-existing tags from other
     sources survive for rows it does not match."""

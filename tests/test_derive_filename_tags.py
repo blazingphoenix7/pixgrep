@@ -87,20 +87,17 @@ def test_derive_two_tone_TW():
     assert _derive_metal("TW100") == "two-tone"
 
 
-def test_derive_two_tone_WT():
-    assert _derive_metal("WT100") == "two-tone"
+def test_derive_two_tone_TR():
+    assert _derive_metal("TR100") == "two-tone"
 
 
-def test_derive_two_tone_YT():
-    assert _derive_metal("YT100") == "two-tone"
-
-
-def test_derive_two_tone_WY():
-    assert _derive_metal("WY100") == "two-tone"
-
-
-def test_derive_two_tone_YW():
-    assert _derive_metal("YW100") == "two-tone"
+def test_derive_two_char_combos_no_longer_two_tone():
+    """WT/YT/WY/YW over-fire on solid one-tone pieces (metal audit) — only a
+    leading T is trusted now; these fall back to their first-letter metal."""
+    assert _derive_metal("WT100") == "white"
+    assert _derive_metal("YT100") == "yellow"
+    assert _derive_metal("WY100") == "white"
+    assert _derive_metal("YW100") == "yellow"
 
 
 def test_derive_skip_unrecognised():
@@ -116,7 +113,7 @@ def test_derive_case_insensitive():
     assert _derive_metal("yg") == "yellow"
     assert _derive_metal("rg") == "rose"
     assert _derive_metal("tw") == "two-tone"
-    assert _derive_metal("yw") == "two-tone"
+    assert _derive_metal("yw") == "yellow"
 
 
 def test_derive_single_char_W():
@@ -170,6 +167,56 @@ def test_derive_skips_ambiguous(tmp_path):
     counts = derive_filename_tags(tmp_path)
     assert counts["derived"] == 0
     assert counts["skipped_ambiguous"] == 1
+
+
+# ---------------------------------------------------------------------------
+# skip_prefixes — product lines that use a trailing letter for item type,
+# not metal. Fake prefixes ("ZZ"/"QQ") used here so no real product-line
+# codes land in tracked test files; real prefixes live in the gitignored
+# _local/styles_mapping.json.
+# ---------------------------------------------------------------------------
+
+
+def test_derive_skips_line_with_skip_prefix(tmp_path):
+    _build_index(tmp_path, ["ZZ0368R.jpg"], ["zz0368"])
+    counts = derive_filename_tags(tmp_path, skip_prefixes=["ZZ"])
+    assert counts["derived"] == 0
+    assert counts["skipped_line_prefix"] == 1
+    assert counts["skipped_ambiguous"] == 0
+    con = sqlite3.connect(str(tmp_path / "pixgrep.sqlite"))
+    tables = {
+        r[0]
+        for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    metal_count = 0
+    if "tags" in tables:
+        metal_count = con.execute(
+            "SELECT COUNT(*) FROM tags WHERE field='metal'"
+        ).fetchone()[0]
+    con.close()
+    assert metal_count == 0
+
+
+def test_derive_skip_prefix_is_case_insensitive(tmp_path):
+    _build_index(tmp_path, ["zz0368r.jpg"], ["zz0368"])
+    counts = derive_filename_tags(tmp_path, skip_prefixes=["ZZ"])
+    assert counts["skipped_line_prefix"] == 1
+
+
+def test_derive_skip_prefix_does_not_affect_other_lines(tmp_path):
+    _build_index(tmp_path, ["1234WG.jpg"], ["1234"])
+    counts = derive_filename_tags(tmp_path, skip_prefixes=["ZZ"])
+    assert counts["derived"] == 1
+    assert counts["skipped_line_prefix"] == 0
+
+
+def test_derive_no_skip_prefixes_by_default(tmp_path):
+    _build_index(tmp_path, ["ZZ0368R.jpg"], ["zz0368"])
+    counts = derive_filename_tags(tmp_path)
+    assert counts["skipped_line_prefix"] == 0
+    assert counts["derived"] == 1
 
 
 def test_derive_idempotent(tmp_path):

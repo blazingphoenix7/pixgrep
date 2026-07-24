@@ -166,14 +166,26 @@ def import_styles_core(
     maps: dict,
     strip_pattern: str,
     dry_run: bool = False,
+    fresh: bool = False,
 ) -> dict:
-    """Match ERP rows to index images and write tags in merge mode.
+    """Match ERP rows to index images and write tags.
+
+    fresh=False (default): merge mode — existing tables survive; matched rows
+      have their ERP-sourced fields replaced, everything else untouched.
+    fresh=True: drops and recreates both tags/tag_text tables first, for a
+      clean rebuild base (e.g. after group_key changes make prior ERP/derived
+      tags stale). Intended as the first step of a full tag-stack rebuild,
+      with subsequent import steps merging on top.
 
     Returns a dict with match/miss counts and per-field tag counts.
     """
     db_path = Path(index_dir) / "pixgrep.sqlite"
     con = sqlite3.connect(str(db_path))
     try:
+        if fresh and not dry_run:
+            con.execute("DROP TABLE IF EXISTS tags")
+            con.execute("DROP TABLE IF EXISTS tag_text")
+            con.commit()
         # Build ERP lookups -------------------------------------------------
         full_sku: dict[str, dict] = {}   # lowercased Style# → record (last wins)
         base_lkp: dict[str, list[dict]] = {}  # stripped key → list of records
@@ -304,6 +316,12 @@ def main() -> None:
         action="store_true",
         help="Count matches without writing to DB.",
     )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Drop and recreate tags/tag_text tables before importing "
+        "(clean rebuild base; use as the first step of a full tag-stack rebuild).",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config) if args.config else load_config()
@@ -321,6 +339,7 @@ def main() -> None:
         maps=maps,
         strip_pattern=cfg.group_strip_pattern,
         dry_run=args.dry_run,
+        fresh=args.fresh,
     )
 
     prefix = "[DRY RUN] " if args.dry_run else ""
