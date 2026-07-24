@@ -138,7 +138,7 @@ async function doSearch() {
   try {
     const url = new URL("/api/search", location.origin);
     url.searchParams.set("q", q);
-    url.searchParams.set("k", "48");
+    url.searchParams.set("k", "0");
     appendFilters(url);
     const r = await fetch(url);
     if (!r.ok) { status.textContent = `Search failed (${r.status}).`; return; }
@@ -156,7 +156,7 @@ async function doImageSearch(file) {
   status.textContent = "Searching by image…";
   try {
     const url = new URL("/api/search/image", location.origin);
-    url.searchParams.set("k", "48");
+    url.searchParams.set("k", "0");
     appendFilters(url);
     const fd = new FormData();
     fd.append("file", file);
@@ -176,7 +176,7 @@ async function doSimilar(row) {
   status.textContent = "Finding similar…";
   try {
     const url = new URL(`/api/similar/${row}`, location.origin);
-    url.searchParams.set("k", "48");
+    url.searchParams.set("k", "0");
     appendFilters(url);
     const r = await fetch(url);
     if (!r.ok) { status.textContent = "Search failed."; return; }

@@ -146,7 +146,7 @@ def create_app(engine: SearchEngine) -> FastAPI:
     @app.get("/api/search")
     def search(
         q: str = Query(...),
-        k: int = Query(24, ge=1, le=200),
+        k: int = Query(24, ge=0),  # 0 = no cap: all relevance-passing results
         min_ratio: float = Query(0.6, ge=0.0, le=1.0),
         min_score: float = Query(0.05, ge=0.0, le=1.0),
         f: list[str] = Query(default=[]),
@@ -164,7 +164,7 @@ def create_app(engine: SearchEngine) -> FastAPI:
     @app.post("/api/search/image")
     def search_image(
         file: UploadFile = File(...),
-        k: int = Query(24, ge=1, le=200),
+        k: int = Query(24, ge=0),  # 0 = no cap: all relevance-passing results
         min_ratio: float = Query(0.6, ge=0.0, le=1.0),
         min_score: float = Query(0.05, ge=0.0, le=1.0),
         f: list[str] = Query(default=[]),
@@ -183,7 +183,7 @@ def create_app(engine: SearchEngine) -> FastAPI:
     @app.get("/api/similar/{row}")
     def similar(
         row: int,
-        k: int = Query(24, ge=1, le=200),
+        k: int = Query(24, ge=0),  # 0 = no cap: all relevance-passing results
         min_ratio: float = Query(0.6, ge=0.0, le=1.0),
         min_score: float = Query(0.05, ge=0.0, le=1.0),
         f: list[str] = Query(default=[]),

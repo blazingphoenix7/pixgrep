@@ -192,9 +192,11 @@ class SearchEngine:
             sims[self._junk_scores >= self._junk_threshold] = -np.inf
 
         n_valid = int(np.sum(np.isfinite(sims)))
-        k = min(k, n_valid)
-        if k <= 0:
+        if n_valid == 0:
             return []
+        # k <= 0 means "no cap": return every row that passes the relevance
+        # floors instead of truncating to a fixed count.
+        k = n_valid if k <= 0 else min(k, n_valid)
 
         # Over-fetch when near-dupe collapse is on, so dropped duplicates
         # still leave room to backfill up to k distinct results.

@@ -179,3 +179,24 @@ def test_group_members_includes_duplicate_aliases(tmp_path):
     # without a pattern the alias grouping is off (old behavior)
     eng_off = SearchEngine(tmp_path, FakeEmbedder())
     assert [m["row"] for m in eng_off.group_members(2)] == [2]
+
+
+def test_k_zero_returns_all_floor_passing(tmp_path):
+    """k=0 removes the count cap: every row passing the relevance floors
+    comes back, not a fixed-size page."""
+    n = 40
+    emb = np.zeros((n, 3), dtype=np.float32)
+    emb[:, 0] = 1.0  # all rows identical -> all pass any relative floor
+    paths = [f"p{i}.jpg" for i in range(n)]
+    save_index(tmp_path, paths, [f"g{i}" for i in range(n)], emb)
+    eng = SearchEngine(tmp_path, FakeEmbedder())
+
+    qv = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    capped = eng._rank(qv, 24, min_ratio=0, min_score=0)
+    uncapped = eng._rank(qv, 0, min_ratio=0, min_score=0)
+    assert len(capped) == 24
+    assert len(uncapped) == n
+
+    # floors still apply when uncapped: nothing relevant -> nothing returned
+    qv_off = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    assert eng._rank(qv_off, 0, min_ratio=0.6, min_score=0.05) == []
