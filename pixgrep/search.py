@@ -20,6 +20,7 @@ class SearchEngine:
         hybrid_weight: float = 0.08,
         junk_threshold: float = 0.0,
         group_strip_pattern: str = "",
+        near_dupe_cos: float = 0.985,
     ):
         self.index_dir = Path(index_dir)
         self.paths, self.groups, self.emb = load_index(self.index_dir)
@@ -27,6 +28,7 @@ class SearchEngine:
         self._hybrid_weight = hybrid_weight
         self._junk_threshold = junk_threshold
         self._group_strip_pattern = group_strip_pattern
+        self._near_dupe_cos = near_dupe_cos
         self._tags = TagStore(self.index_dir)
         self._junk_scores = load_junk_scores(self.index_dir, len(self.paths))
 
@@ -178,9 +180,15 @@ class SearchEngine:
         if k <= 0:
             return []
 
+        # Over-fetch when near-dupe collapse is on, so dropped duplicates
+        # still leave room to backfill up to k distinct results.
+        pool_k = k
+        if self._near_dupe_cos > 0:
+            pool_k = min(n_valid, max(3 * k, k + 20))
+
         # Partition and sort by semantic score; convert to list immediately so
         # truth-value checks below always work regardless of cutoff conditions.
-        top_idx = np.argpartition(-sims, kth=k - 1)[:k]
+        top_idx = np.argpartition(-sims, kth=pool_k - 1)[:pool_k]
         top: list[int] = list(top_idx[np.argsort(-sims[top_idx])])
 
         # Relevance floors apply to SEMANTIC score only
@@ -197,9 +205,30 @@ class SearchEngine:
         if lex_scores is not None and hybrid_weight > 0 and len(lex_scores) == len(self.paths):
             hybrid = {i: float(sims[i]) + hybrid_weight * float(lex_scores[i]) for i in top}
             top = sorted(top, key=lambda i: -hybrid[i])
-            return [self._result(int(i), hybrid[i]) for i in top]
+            scores = hybrid
+        else:
+            scores = {i: float(sims[i]) for i in top}
 
-        return [self._result(int(i), float(sims[i])) for i in top]
+        if self._near_dupe_cos > 0:
+            top = self._collapse_near_dupes(top)
+        top = top[:k]
+
+        return [self._result(int(i), scores[i]) for i in top]
+
+    def _collapse_near_dupes(self, ranked: list[int]) -> list[int]:
+        """Drop lower-ranked rows that are near-identical (same group, cos >
+        threshold) to an already-kept higher-ranked row."""
+        kept: list[int] = []
+        for i in ranked:
+            gi = self.groups[i]
+            ei = self.emb[i]
+            if any(
+                gi == self.groups[j] and float(ei @ self.emb[j]) > self._near_dupe_cos
+                for j in kept
+            ):
+                continue
+            kept.append(i)
+        return kept
 
     def _result(self, row: int, score: float) -> dict:
         p = Path(self.paths[row])

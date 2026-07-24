@@ -285,6 +285,7 @@ def main() -> None:
         hybrid_weight=cfg.hybrid_weight,
         junk_threshold=cfg.junk_threshold,
         group_strip_pattern=cfg.group_strip_pattern,
+        near_dupe_cos=cfg.near_dupe_cos,
     )
     print(f"Index loaded: {engine.count} images. http://{args.host}:{args.port}")
     uvicorn.run(create_app(engine), host=args.host, port=args.port)
