@@ -24,3 +24,38 @@ def test_env_var_overrides(tmp_path, monkeypatch):
     monkeypatch.setenv("PIXGREP_IMAGE_ROOT", str(tmp_path))
     cfg = load_config(tmp_path / "none.json")
     assert cfg.image_root == tmp_path
+
+
+def test_lexical_inject_and_junk_soft_weight_defaults(tmp_path, monkeypatch):
+    monkeypatch.delenv("PIXGREP_IMAGE_ROOT", raising=False)
+    cfg_file = tmp_path / "config.local.json"
+    cfg_file.write_text(json.dumps({"image_root": str(tmp_path / "imgs")}))
+    cfg = load_config(cfg_file)
+    assert cfg.lexical_inject_k == 50
+    assert cfg.junk_soft_weight == 1.0
+
+
+def test_lexical_inject_and_junk_soft_weight_from_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("PIXGREP_IMAGE_ROOT", raising=False)
+    cfg_file = tmp_path / "config.local.json"
+    cfg_file.write_text(json.dumps({
+        "image_root": str(tmp_path / "imgs"),
+        "lexical_inject_k": 10,
+        "junk_soft_weight": 0.5,
+    }))
+    cfg = load_config(cfg_file)
+    assert cfg.lexical_inject_k == 10
+    assert cfg.junk_soft_weight == 0.5
+
+
+def test_lexical_inject_and_junk_soft_weight_zero_disables(tmp_path, monkeypatch):
+    monkeypatch.delenv("PIXGREP_IMAGE_ROOT", raising=False)
+    cfg_file = tmp_path / "config.local.json"
+    cfg_file.write_text(json.dumps({
+        "image_root": str(tmp_path / "imgs"),
+        "lexical_inject_k": 0,
+        "junk_soft_weight": 0,
+    }))
+    cfg = load_config(cfg_file)
+    assert cfg.lexical_inject_k == 0
+    assert cfg.junk_soft_weight == 0.0

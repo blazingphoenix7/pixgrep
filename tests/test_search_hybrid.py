@@ -117,7 +117,9 @@ def test_hybrid_blend_rereanks_within_survivors(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_lexical_boost_cannot_rescue_low_semantic_row(tmp_path):
-    """Rows with a tag lexical match but sub-floor semantic score must not appear.
+    """Rows with a tag lexical match but sub-floor semantic score must not appear
+    via hybrid RE-RANKING alone (lexical injection, a separate deliberate
+    bypass, is disabled here — see tests/test_lexical_inject.py for that).
 
     Setup: a query maps to axis 0 (rows 0 and 1 pass), but row 2 has a tag
     matching the query token.  Even with hybrid_weight=1.0, row 2 must be
@@ -138,7 +140,7 @@ def test_lexical_boost_cannot_rescue_low_semantic_row(tmp_path):
         {"fn": "c.jpg", "cat": "widget", "metal": "gold"},  # row 2: LOW semantic for axis-0 query
     ]
     import_tags(tmp_path, records, "fn", {"category": "cat", "metal": "metal"}, [])
-    engine = SearchEngine(tmp_path, FakeEmbedder(), hybrid_weight=1.0)
+    engine = SearchEngine(tmp_path, FakeEmbedder(), hybrid_weight=1.0, lexical_inject_k=0)
 
     # FakeEmbedder maps "abcd" (len=4, 4%4=0) → axis 0 → sims[2]≈0
     # min_score=0.05 excludes row 2; lexical boost must not rescue it

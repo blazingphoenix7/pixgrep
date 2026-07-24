@@ -23,6 +23,8 @@ class Config:
     hybrid_weight: float = 0.08
     junk_threshold: float = 0.0  # 0 = disabled
     near_dupe_cos: float = 0.985  # 0 = disabled
+    lexical_inject_k: int = 50  # 0 = disabled
+    junk_soft_weight: float = 1.0  # 0 = disabled
 
     @property
     def db_path(self) -> Path:
@@ -73,4 +75,6 @@ def load_config(path="config.local.json") -> Config:
         hybrid_weight=float(data.get("hybrid_weight", 0.08)),
         junk_threshold=float(data.get("junk_threshold", 0.0)),
         near_dupe_cos=float(data.get("near_dupe_cos", 0.985)),
+        lexical_inject_k=int(data.get("lexical_inject_k", 50)),
+        junk_soft_weight=float(data.get("junk_soft_weight", 1.0)),
     )

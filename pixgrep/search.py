@@ -21,6 +21,8 @@ class SearchEngine:
         junk_threshold: float = 0.0,
         group_strip_pattern: str = "",
         near_dupe_cos: float = 0.985,
+        lexical_inject_k: int = 50,
+        junk_soft_weight: float = 1.0,
     ):
         self.index_dir = Path(index_dir)
         self.paths, self.groups, self.emb = load_index(self.index_dir)
@@ -29,6 +31,8 @@ class SearchEngine:
         self._junk_threshold = junk_threshold
         self._group_strip_pattern = group_strip_pattern
         self._near_dupe_cos = near_dupe_cos
+        self._lexical_inject_k = lexical_inject_k
+        self._junk_soft_weight = junk_soft_weight
         self._tags = TagStore(self.index_dir)
         self._junk_scores = load_junk_scores(self.index_dir, len(self.paths))
 
@@ -54,12 +58,17 @@ class SearchEngine:
         qv = self.embedder.embed_texts([query])[0]
         hw = hybrid_weight if hybrid_weight is not None else self._hybrid_weight
         lex = None
-        if hw > 0 and self._tags.has_data:
-            lex = self._tags.lexical_scores(query, len(self.paths))
+        inject_rows = None
+        if self._tags.has_data:
+            if hw > 0 or self._lexical_inject_k > 0:
+                lex = self._tags.lexical_scores(query, len(self.paths))
+            if self._lexical_inject_k > 0:
+                inject_rows = self._tags.strong_match_rows(query)
         return self._rank(
             qv, k,
             min_ratio=min_ratio, min_score=min_score,
             filters=filters, lex_scores=lex, hybrid_weight=hw,
+            inject_rows=inject_rows,
         )
 
     def image_search(
@@ -155,8 +164,15 @@ class SearchEngine:
         filters: dict[str, str] | None = None,
         lex_scores: np.ndarray | None = None,
         hybrid_weight: float = 0.0,
+        inject_rows: np.ndarray | None = None,
     ) -> list[dict]:
         sims = self.emb @ qv.astype(np.float32)
+
+        # Soft junk penalty: proportional demotion, not a binary cut. Runs
+        # before any masking so it shapes ranking among survivors; the
+        # binary junk_threshold mask (below) still applies after this.
+        if self._junk_scores is not None and self._junk_soft_weight > 0:
+            sims = sims - self._junk_soft_weight * np.clip(self._junk_scores, 0.0, None)
 
         if exclude is not None:
             sims[exclude] = -np.inf
@@ -200,6 +216,31 @@ class SearchEngine:
 
         if not top:
             return []
+
+        # Lexical injection: pull in rows a strong tag match identifies for
+        # this query but that the semantic floors excluded above. They must
+        # still be finite (not filter/junk masked, not excluded) and carry
+        # real lexical support for THIS query, not just any tag match.
+        if (
+            self._lexical_inject_k > 0
+            and inject_rows is not None
+            and len(inject_rows) > 0
+            and lex_scores is not None
+        ):
+            top_set = set(top)
+            candidates = [
+                int(i) for i in inject_rows
+                if int(i) not in top_set and np.isfinite(sims[int(i)])
+            ]
+            lex_max = float(lex_scores.max()) if len(lex_scores) else 0.0
+            if candidates and lex_max > 0:
+                min_lex = 0.5 * lex_max
+                candidates = [i for i in candidates if float(lex_scores[i]) >= min_lex]
+                if candidates:
+                    candidates.sort(
+                        key=lambda i: -(float(sims[i]) + hybrid_weight * float(lex_scores[i]))
+                    )
+                    top = top + candidates[: self._lexical_inject_k]
 
         # Hybrid blend: re-rank survivors by semantic + w * lexical
         if lex_scores is not None and hybrid_weight > 0 and len(lex_scores) == len(self.paths):

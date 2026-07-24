@@ -286,6 +286,8 @@ def main() -> None:
         junk_threshold=cfg.junk_threshold,
         group_strip_pattern=cfg.group_strip_pattern,
         near_dupe_cos=cfg.near_dupe_cos,
+        lexical_inject_k=cfg.lexical_inject_k,
+        junk_soft_weight=cfg.junk_soft_weight,
     )
     print(f"Index loaded: {engine.count} images. http://{args.host}:{args.port}")
     uvicorn.run(create_app(engine), host=args.host, port=args.port)

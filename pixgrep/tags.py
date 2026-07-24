@@ -238,6 +238,31 @@ class TagStore:
             result = rows if result is None else np.intersect1d(result, rows)
         return result if result is not None else np.array([], dtype=np.int64)
 
+    def strong_match_rows(self, query: str) -> np.ndarray:
+        """Rows with >=1 categorical tag value FULLY contained in the query.
+
+        Same containment rule as lexical_scores' component 1: a value's
+        tokens must ALL appear in the query's token set. Sorted unique row
+        indices; empty array when nothing matches or there is no tag data.
+        """
+        if not self._has_data:
+            return np.array([], dtype=np.int64)
+
+        query_token_set = frozenset(_tokenize(query))
+        if not query_token_set:
+            return np.array([], dtype=np.int64)
+
+        rows: set[int] = set()
+        for field_data in self._field_value_rows.values():
+            for value, value_rows in field_data.items():
+                val_toks = _tokenize(value)
+                if val_toks and all(t in query_token_set for t in val_toks):
+                    rows.update(value_rows.tolist())
+
+        if not rows:
+            return np.array([], dtype=np.int64)
+        return np.array(sorted(rows), dtype=np.int64)
+
     def lexical_scores(self, query: str, n_rows: int) -> np.ndarray:
         """Vectorized lexical scoring, result normalized to [0, 1].
 

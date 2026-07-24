@@ -259,6 +259,55 @@ def test_lexical_scores_zero_n_rows(store):
     assert s.shape == (0,)
 
 
+def test_strong_match_rows_no_data(tmp_path):
+    _build_index(tmp_path)
+    ts = TagStore(tmp_path)
+    rows = ts.strong_match_rows("widget")
+    assert rows.shape == (0,)
+    assert rows.dtype == np.int64
+
+
+def test_strong_match_rows_empty_query(store):
+    rows = store.strong_match_rows("")
+    assert rows.shape == (0,)
+
+
+def test_strong_match_rows_no_match(store):
+    rows = store.strong_match_rows("xyzzy plutonium")
+    assert rows.shape == (0,)
+
+
+def test_strong_match_rows_single_word_value(store):
+    # "widget" fully contained in query -> rows 0, 2 (category=widget)
+    rows = store.strong_match_rows("widget sparkle")
+    assert set(rows.tolist()) == {0, 2}
+
+
+def test_strong_match_rows_sorted_unique(store):
+    rows = store.strong_match_rows("red")
+    assert rows.tolist() == sorted(set(rows.tolist()))
+    assert set(rows.tolist()) == {0, 3}
+
+
+def test_strong_match_rows_multiword_value_requires_all_tokens(tmp_path):
+    _build_index(tmp_path, 3)
+    records = [
+        {"file": "item0.jpg", "cat": "tennis bracelet", "color": "white", "note": ""},
+        {"file": "item1.jpg", "cat": "solitaire ring",  "color": "gold",  "note": ""},
+        {"file": "item2.jpg", "cat": "bracelet",        "color": "silver", "note": ""},
+    ]
+    import_tags(tmp_path, records, "file", {"category": "cat", "color": "color"}, [])
+    ts = TagStore(tmp_path)
+
+    both = ts.strong_match_rows("tennis bracelet")
+    assert 0 in both.tolist()  # "tennis bracelet" fully contained
+    assert 2 in both.tolist()  # "bracelet" alone also fully contained
+
+    partial = ts.strong_match_rows("tennis")
+    assert 0 not in partial.tolist()  # "tennis bracelet" not fully in query
+    assert 2 not in partial.tolist()  # "bracelet" not in query at all
+
+
 def test_lexical_scores_multiword_value_requires_all_tokens(tmp_path):
     """A multi-word categorical value triggers component-1 only when ALL tokens in query.
 
