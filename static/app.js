@@ -75,12 +75,44 @@ function appendFilters(url) {
   }
 }
 
+// Chunked rendering: results arrive uncapped (thousands for broad queries),
+// so cards are appended in batches as the user scrolls instead of all at once.
+const RENDER_CHUNK = 200;
+let pendingResults = [];
+let renderedCount = 0;
+let gridSentinel = null;
+
+const chunkObserver = new IntersectionObserver((entries) => {
+  if (entries.some((e) => e.isIntersecting)) renderNextChunk();
+}, { rootMargin: "1200px" });
+
+function renderNextChunk() {
+  const next = pendingResults.slice(renderedCount, renderedCount + RENDER_CHUNK);
+  for (const r of next) grid.insertBefore(buildCard(r), gridSentinel);
+  renderedCount += next.length;
+  if (renderedCount >= pendingResults.length && gridSentinel) {
+    chunkObserver.unobserve(gridSentinel);
+    gridSentinel.remove();
+    gridSentinel = null;
+  }
+}
+
 function render(results) {
   grid.replaceChildren();
+  if (gridSentinel) { chunkObserver.unobserve(gridSentinel); gridSentinel = null; }
+  pendingResults = results;
+  renderedCount = 0;
   // Both the status count and the card loop derive from the same array, so they are always in sync.
   if (!results.length) { status.textContent = "No matches."; return; }
   status.textContent = `${results.length} match${results.length === 1 ? "" : "es"}`;
-  for (const r of results) {
+  gridSentinel = document.createElement("div");
+  gridSentinel.className = "grid-sentinel";
+  grid.appendChild(gridSentinel);
+  chunkObserver.observe(gridSentinel);
+  renderNextChunk();
+}
+
+function buildCard(r) {
     const card = document.createElement("div");
     card.className = "card";
     const imgwrap = document.createElement("div");
@@ -121,8 +153,7 @@ function render(results) {
     });
     card.appendChild(addBtn);
 
-    grid.appendChild(card);
-  }
+    return card;
 }
 
 function setSearching(active) {

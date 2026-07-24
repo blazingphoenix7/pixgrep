@@ -187,3 +187,5 @@ main { padding: 16px 32px 160px; }
 }
 .tray-primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .tray-msg { color: #e05050; font-size: 12px; }
+
+.grid-sentinel { width: 100%; height: 1px; }
